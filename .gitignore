@@ -1,1 +1,6 @@
 /.env
+logs/
+*.log
+*.json
+__pycache__/
+*.pyc

@@ -5,6 +5,7 @@ import json
 import statistics
 from pathlib import Path
 from typing import List, Dict
+from sklearn.model_selection import train_test_split
 
 # === CONFIGURATION ===
 RUBRIC_FILE = 'internship.enhance_b2_article_writing_rubric.pdf'
@@ -19,6 +20,7 @@ resources and facilities.
 Give your article a title. Write your ARTICLE in 180-220 words."""
 
 DEBUG_LOG = 'logs/parse_debug.log'
+Path('logs').mkdir(exist_ok=True) # Create dir.
 open(DEBUG_LOG, 'w').close() # Cleares the log.
 
 def log_debug(message: str):
@@ -47,7 +49,7 @@ def extract_rubric(pdf_path: str) -> str:
         
         bullets = []
         for level_num, level_label, desc in matches:
-            clean_desc = " ".join(desc.strip().split()) # Normalize the whitespace.
+            clean_desc = re.sub(r'\s+', ' ', desc.strip()) # Normalize the whitespace.
             bullets.append(f"• level {level_num} ({level_label}): {clean_desc}")
 
         rubric_text = "\n".join(bullets)
@@ -58,13 +60,9 @@ def extract_rubric(pdf_path: str) -> str:
     except Exception as e:
         print(F"Error parsing rubric: {e}")
         log_debug(f"Error: {e}")
-        rubric_text = "\n".join([
-            "• Level 5 (Excellent): Excellent performance across all criteria.",
-            "• Level 4 (Good): Good performance.",
-            "• Score 3 (Satisfactory): Satisfactory performance.",
-            "• Score 2 (Limited): Limited performance.",
-            "• Score 1 (Inadequate): Inadequate performance",
-        ]) * 5 # This is the fallback for the 5 criteria.
+        # This is the fallback for the 5 criteria.
+        fallback = "• Level 5 (Excellent): Excellent performance. \n• Level 4 (Good): Good performance. \n• Score 3 (Satisfactory): Satisfactory performance. \n• Score 2 (Limited): Limited performance. \n• Score 1 (Inadequate): Inadequate performance"
+        rubric_text = fallback * 5 # Repeat for TA, CC, GR, LR, OWP.
 
     return rubric_text
 
@@ -175,6 +173,7 @@ def _finalize_sample(title: str, article: str, rubric_bullets: str, scores: Dict
     """Builds full input prompt and pairs with ground truth"""
     article = article.strip()
     full_input = f"""TASK: {TASK_PROMPT}
+
 STUDENT ARTICLE TITLE: {title}
 STUDENT ARTICLE:
 {article}
@@ -182,12 +181,15 @@ STUDENT ARTICLE:
 RUBRIC:
 {rubric_bullets}
 
-INSTRUCTIONS: Grade this article using the provided rubric above.
-For each criterion (Task Achievement, Cohesion and Coherence, Grammatical Accuracy and Range, Lexical Accuracy and Range, Overall Written Production), assign a score from 1.0 to 5.0.
-Ensure that your score is only a whole number in float format from the following list: [1.0, 2.0, 3.0, 4.0, 5.0].
-At the end, output exactly: RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0
-"""
+INSTRUCTIONS: You are grading a B2 English article. Analyze step-by-step in 'reasoning', reference useful playbook bullets in 'bullet_ids', and put socres in 'final_answer' as RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0.
+OUTPUT RAW JSON ONLY: {{"reasoning": "your analysis with \\n for breaks", "bullet_ids": ["id1", "id2"], "final_answer": "RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0"}}. NO Markdown (no '''json), NO extra text, No explanations outside JSON. Use \\n for line breaks in reasoning. Scores: whole floats [1.0-5.0]."""
+
     
+    if scores and len(scores) >= 4 and 'OWP' not in scores:
+        avg = statistics.mean([scores.get(k, 3.0) for k in ['TA', 'CC', 'GR', 'LR']])
+        scores['OWP'] = round(avg) # Whole number. 
+
+
     ground_truth = scores or {
         'TA' : 0.0, 'CC' : 0.0, 'GR' : 0.0, 'LR' : 0.0, 'OWP' : 0.0
     }
@@ -214,12 +216,6 @@ if __name__ == "__main__":
     print(f"Debug log saved to {DEBUG_LOG} for inspection")
 
 
-from sklearn.model_selection import train_test_split
 train_samples, test_samples = train_test_split(samples, test_size=0.2, random_state=42)
-
-SEED_BULLETS = [
-"CRITICAL: output EXACTLY: RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0 at end. Parseable JSON.",
-"CHAIN OF THOUGHT: 1. Quote evidence. 2. Map to rubric level. 3. Justify score.",
-"DETERMINISM: Ignore creativity; stick to rubric descriptors verbatim.",
-f"RUBRIC BULLETS: {rubric_bullets}"
-]
+json.dump(train_samples, open('logs/train_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+json.dump(test_samples, open('logs/test_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)

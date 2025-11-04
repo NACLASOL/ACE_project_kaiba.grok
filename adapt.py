@@ -1,6 +1,7 @@
 import re
 import json
-import datetime
+from datetime import datetime
+from pathlib import Path
 from parse_data import train_samples
 from statistics import mean
 from upv_grader import *
@@ -10,14 +11,15 @@ mismatches_log = []
 deltas_log = []
 playbooks_log = []
 
+Path('logs').mkdir(exist_ok=True) # Ensure dir.
 
-def log_failure(final_answer):
-    with open('logs/result_failures.log', 'w') as f:
-        f.write(f"---\n{datetime.now()}\n\n{final_answer}\n---\n")
-        
+def log_failure(final_answer, error_message="log_failure error"):
+    with open('logs/result_failures.log', 'a') as f:
+        f.write(f"---\n{datetime.now()}\nError: {error_message}\n\n{final_answer}\n---\n")
+      
 for epoch in range(EPOCHS):
     epoch_mismatches = []
-    for sample in train_samples:
+    for i, sample in enumerate(train_samples):
 
         try:
             # 1. GENERATE.
@@ -25,14 +27,19 @@ for epoch in range(EPOCHS):
             result = generator.generate(question=prompt, context= "", playbook=playbook)
         except Exception as e:
             # Debug: Log if parse fails.
-            log_failure(e)
-            raise
+            log_failure(str(sample['input']), str(e)) # Log prompt snippet.
+            # Skip this sample or retry (for now, its sets low scores)
+            ai_scores= {'TA': 1.0, 'CC': 1.0, 'GR': 1.0, 'LR': 1.0, 'OWP': 1.0}
+            mismatch = 2.0 # High score for penalty.
+            epoch_mismatches.append(mismatch)
+            feedback = f"Generation failed: {str(e)}. Human: {sample['ground_truth']}. Use fallback scores."
+            continue
 
         # 2. PARSE AI SCORES (Flexible regex for labels/spaces/colons).
         results_match = re.search(
             r'RESULTS\s*,\s*(?:TA\s*[\: ]*)?(\d\.\d)\s*,\s*(?:CC\s*[\: ]*)?(\d\.\d)\s*,\s*(?:GR\s*[\: ]*)?(\d\.\d)\s*,\s*(?:LR\s*[\: ]*)?(\d\.\d)\s*,\s*(?:OWP\s*[\: ]*)?(\d\.\d)',
             result.final_answer, re.IGNORECASE,
-            )
+        )
         if results_match:
             ai_scores = {
                 'TA' : float(results_match.group(1)),
@@ -43,6 +50,7 @@ for epoch in range(EPOCHS):
             }
         else:
             ai_scores = {'TA': 0.0, 'CC' : 0.0, 'GR' : 0.0, 'LR' : 0.0, 'OWP' : 0.0} # Fail-safe.
+            log_failure(result.final_answer, "Regex parse failed")
 
         # 3. MISMATCH.
         human = sample['ground_truth']
@@ -52,32 +60,43 @@ for epoch in range(EPOCHS):
         feedback = f"Human: {human}. AI: {ai_scores}. Avg mismatch: {mismatch:.2f}. Fix reasoning gaps."
 
         # 4. REFLECT.
-        reflection = reflector.reflect(
-            question="",
-            generator_output=result,
-            playbook=playbook,
-            ground_truth=str(human),
-            feedback=feedback,
-        )
+        try:
+            reflection = reflector.reflect(
+                question="",
+                generator_output=result,
+                playbook=playbook,
+                ground_truth=str(human),
+                feedback=feedback,
+            )
+        except Exception as e:
+            log_failure(feedback, f"Reflect failed: {str(e)}")
+            reflection = "" # Skip this reflection.
         
         # 5. CURATE & APPLY DELTA.
-        deltas = curator.curate(
-            reflection=reflection,
-            playbook=playbook,
-            question_context="",
-            progress="",
-        )
-        old_size = len(playbook.bullets)
-        playbook.apply_delta(deltas)
-        new_deltas = [d for d in deltas if 'ADD' in str(d) or 'MODIFY' in str(d)] # Log changes.
-        deltas_log.append({'epoch' : epoch, 'deltas' : new_deltas})
+        try:
+            deltas = curator.curate(
+                reflection=reflection,
+                playbook=playbook,
+                question_context="",
+                progress="",
+            )
+            old_size = len(playbook.bullets)
+            playbook.apply_delta(deltas)
+            new_deltas = [str(d) for d in deltas if 'ADD' in str(d) or 'MODIFY' in str(d)] # Log changes.
+            deltas_log.append({'epoch' : epoch, 'deltas' : new_deltas})
+        except Exception as e:
+            log_failure(feedback, f"Curate failed: {str(e)}")
 
     avg_mismatch = mean(epoch_mismatches)
     mismatches_log.append(avg_mismatch)
     playbooks_log.append(playbook.bullets) # Snapshot of playbook.
 
     # LOG
-    json.dump({'epoch' : epoch, 'avg_mismatch' : avg_mismatch, 'playbook_size' : len(playbook.bullets)},
-            open(f'logs/epoch-{epoch:02d}.json', 'w'))
+    epoch_log = {'epoch': epoch, 'avg_mismatch': avg_mismatch, 'playbook_size': len(playbook.bullets)}
+    json.dump(epoch_log, open(f'logs/epoch-{epoch:02d}.json', 'w'), indent=2)
+
+    print(f"Epoch {epoch}: Avg mismatch {avg_mismatch:.3f}, Playbook size {len(playbook.bullets)}")
+
+json.dump({'mismatches_log': mismatches_log, 'deltas_log': deltas_log}, open('logs/adaptation_summary.json', 'w'), indent=2)
 
 print("✅ Adaptation Complete!")
