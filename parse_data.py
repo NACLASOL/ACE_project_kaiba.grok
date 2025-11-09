@@ -54,7 +54,7 @@ def extract_rubric(pdf_path: str) -> str:
 
         rubric_text = "\n".join(bullets)
 
-        print(f"Extracted rubric: {len(bullets)} scoring levels (across all cirteria).")
+        print(f"Extracted rubric: {len(bullets)} scoring levels (across all criteria).")
         log_debug(f"Extracted {len(bullets)} levels.\n")
 
     except Exception as e:
@@ -184,7 +184,7 @@ RUBRIC:
 INSTRUCTIONS: You are grading a B2 English article. Analyze step-by-step in 'reasoning', reference useful playbook bullets in 'bullet_ids', and put socres in 'final_answer' as RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0.
 OUTPUT RAW JSON ONLY: {{"reasoning": "your analysis with \\n for breaks", "bullet_ids": ["id1", "id2"], "final_answer": "RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0"}}. NO Markdown (no '''json), NO extra text, No explanations outside JSON. Use \\n for line breaks in reasoning. Scores: whole floats [1.0-5.0]."""
 
-    
+
     if scores and len(scores) >= 4 and 'OWP' not in scores:
         avg = statistics.mean([scores.get(k, 3.0) for k in ['TA', 'CC', 'GR', 'LR']])
         scores['OWP'] = round(avg) # Whole number. 
@@ -217,5 +217,7 @@ if __name__ == "__main__":
 
 
 train_samples, test_samples = train_test_split(samples, test_size=0.2, random_state=42)
+one_sample = [samples[0]]
 json.dump(train_samples, open('logs/train_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
 json.dump(test_samples, open('logs/test_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+json.dump(one_sample, open('logs/one_sample.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
