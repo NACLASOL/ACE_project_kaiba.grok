@@ -15,10 +15,10 @@ EPOCH_FILES = sorted(LOG_DIR.glob("epoch-*.json")) # For epoch-00.json, epoch-01
 sns.set_style('whitegrid')
 plt.rcParams["figure.figsize"] = (10,6)
 plt.rcParams["font.size"] = 12
-SAVE_FIGS = True    # Set to False to only show interactively.
+SAVE_FIGS = False    # Set to False to only show interactively.
 FIG_FMT = "png"     # "png" | "pdf" | "svg"
 
-# === LOAD DATA ===
+# 2. === LOAD DATA ===
 def load_summary() -> Dict[str, Any]:
     with open(SUMMARY_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -38,9 +38,9 @@ def gather_all_epochs() -> List[Dict[str, Any]]:
         epoch_num = int(fp.stem.split("-")[1])
         epochs.append((epoch_num, load_epoch(epoch_num)))
     epochs.sort(key=lambda x: x[0])
-    return [e[1] for _, e in epochs]
+    return [data for num, data in epochs]
 
-# === PLOTTING FUNCTIONS ===
+# 3. === PLOTTING FUNCTIONS ===
 def plot_mismatch_and_playbook(epochs_data: List[Dict[str, Any]]):
     epochs = [d["epoch"] for d in epochs_data]
     mismatches = [d["avg_mismatch"] for d in epochs_data]
@@ -122,7 +122,7 @@ def plot_playbook_evolution(epochs_data: List[Dict[str, Any]]):
         plt.savefig(LOG_DIR / f"playbook_growth.{FIG_FMT}", dpi=300)
     plt.show()
 
-# === MAIN EXECUTION ===
+# 4. === MAIN EXECUTION ===
 def main():
     if not LOG_DIR.exists():
         raise FileExistsError(f"Log directory {LOG_DIR} not found - run adapt.py first")
