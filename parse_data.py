@@ -35,33 +35,64 @@ def extract_rubric(pdf_path: str) -> str:
     Extracts the full rubric from the rubric PDF and returns a 
     clean string of bullets.
     """
-    rubric_text = ""
+    rubric_text = []
+    rubric_category = ""
     try:
         with pdfplumber.open(pdf_path) as pdf:
-            full_text = '\n'.join(page.extract_text() for page in pdf.pages)
+            full_text = '\n'.join(page.extract_text() or "" for page in pdf.pages)
+            log_debug(f"Full rubric text:\n\n{full_text[:2000]}...\n") # Logs first 2000 chars for debugging.
 
+            # Split full text into sections by category headers (e.g., "1 Task Achievement", "2 Cohesion and Coherence".
+            # Pattern finds numbered categories like "1 Task Achievement" or "3 Grammatical Accuary and Range".
+            section_pattern = r'(\d+)\s+([A-Za-z\s&]+)\s*Level\s+([A-Za-z\s&]+)\s+Performance Descriptors'
+            sections = re.split(section_pattern, full_text, flags=re.DOTALL | re.IGNORECASE)
         
-        log_debug(f"Full rubric text:\n\n{full_text[:2000]}...\n") # Logs first 2000 chars for debugging.
-        # Extract all level descriptors (Scores 5 to 1).
-        # Pattern: "Score X (Level): Description until next Score or end".
-        pattern = r'(\d) \(([^)]+)\)\s*(.*?)(?=\d \(|$)'
-        matches = re.findall(pattern, full_text, re.DOTALL)
-        
-        bullets = []
-        for level_num, level_label, desc in matches:
-            clean_desc = re.sub(r'\s+', ' ', desc.strip()) # Normalize the whitespace.
-            bullets.append(f"• level {level_num} ({level_label}): {clean_desc}")
+        # Process each section
+        i = 0
+        while i < len(sections):
+            part = sections[i].strip()
+            if re.match(r'^\d+$', part): # If it's a number (start of a category)
+                category_num = part
+                category_name = sections[i+1].strip() if i+1 < len(sections) else ""
+                # Skip the "Level" and "Performance Descriptors" parts if matched.
+                i += 3
+                description_text = sections[i] if i < len(sections) else ""
 
-        rubric_text = "\n".join(bullets)
+                # Append the category header.
+                rubric_text.append(f"\n**{category_name}")
 
-        print(f"Extracted rubric: {len(bullets)} scoring levels (across all criteria).")
-        log_debug(f"Extracted {len(bullets)} levels.\n")
+                # Extract levels from description_text.
+                level_pattern = r'(\d) \(([^)]+)\)\s*(.*?)(?=\d \(|$|Level)'
+                levels = re.findall(level_pattern, description_text, re.DOTALL)
+                for level_num, level_label, desc, in levels:
+                    clean_desc = re.sub(r'\s+', ' ', desc.strip()) # Normalize the whitespace.
+                    rubric_text.append(f"• Level {level_num} ({level_label}): {clean_desc}")
+
+            i += 1
+
+        final_text = "\n".join(rubric_text).strip()
+        print(f"Extracted structured rubric with categories")
+        log_debug(f"Extracted rubric:\n{final_text}")
+
+        return final_text
 
     except Exception as e:
         print(F"Error parsing rubric: {e}")
         log_debug(f"Error: {e}")
         # This is the fallback for the 5 criteria.
-        fallback = "• Level 5 (Excellent): Excellent performance. \n• Level 4 (Good): Good performance. \n• Score 3 (Satisfactory): Satisfactory performance. \n• Score 2 (Limited): Limited performance. \n• Score 1 (Inadequate): Inadequate performance"
+        categories = [
+            "Task Achievement", "Cohesion and Coherence", "Grammatical Accuracy",
+            "Lexical Accuracy", "Overall Written Production",
+        ]
+        fallback = ""
+        for cat in categories:
+            fallback += f"\n**{cat}**\n"
+            fallback += ""
+            fallback += ""
+            fallback += ""
+            fallback += ""
+            fallback += ""
+    
         rubric_text = fallback * 5 # Repeat for TA, CC, GR, LR, OWP.
 
     return rubric_text
