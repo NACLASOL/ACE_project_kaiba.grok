@@ -27,8 +27,6 @@ def log_debug(message: str):
     with open(DEBUG_LOG, 'a', encoding='utf-8') as f:
         f.write(message + '\n')
 
-
-
 # === RUBRIC EXTRACT (Returns formatted bullet list) ===
 def extract_rubric(pdf_path: str) -> str:
     """
@@ -36,7 +34,7 @@ def extract_rubric(pdf_path: str) -> str:
     clean string of bullets.
     """
     rubric_text = []
-    rubric_category = ""
+    current_category = ""
     try:
         with pdfplumber.open(pdf_path) as pdf:
             full_text = '\n'.join(page.extract_text() or "" for page in pdf.pages)
@@ -51,7 +49,7 @@ def extract_rubric(pdf_path: str) -> str:
         i = 0
         while i < len(sections):
             part = sections[i].strip()
-            if re.match(r'^\d+$', part): # If it's a number (start of a category)
+            if re.match(r'^\d+$', part): # If it's a number (start of a category).
                 category_num = part
                 category_name = sections[i+1].strip() if i+1 < len(sections) else ""
                 # Skip the "Level" and "Performance Descriptors" parts if matched.
@@ -59,7 +57,7 @@ def extract_rubric(pdf_path: str) -> str:
                 description_text = sections[i] if i < len(sections) else ""
 
                 # Append the category header.
-                rubric_text.append(f"\n**{category_name}")
+                rubric_text.append(f"\n**{category_name}**")
 
                 # Extract levels from description_text.
                 level_pattern = r'(\d) \(([^)]+)\)\s*(.*?)(?=\d \(|$|Level)'
@@ -87,19 +85,16 @@ def extract_rubric(pdf_path: str) -> str:
         fallback = ""
         for cat in categories:
             fallback += f"\n**{cat}**\n"
-            fallback += ""
-            fallback += ""
-            fallback += ""
-            fallback += ""
-            fallback += ""
+            fallback += "• Level 5 (Excellent): Excellent performance.\n"
+            fallback += "• Level 4 (Good): Good performance.\n"
+            fallback += "• Level 4 (Good): Good performance.\n"
+            fallback += "• Level 2 (Limited): Limited performance.\n"
+            fallback += "• Level 2 (Limited): Limited performance.\n"
+        return fallback.strip()
     
-        rubric_text = fallback * 5 # Repeat for TA, CC, GR, LR, OWP.
-
-    return rubric_text
-
 
 # === STUDENT EXAMPLE EXTRACT + HUMAN SCORES ===
-def extract_examples(pdf_path: str, rubric_bullets: str) -> list:
+def extract_examples(pdf_path: str, rubric_bullets: str) -> List[Dict]:
     """
     Parses the student examples PDF and returns a list of samples.
     Each sample includes:
@@ -135,6 +130,7 @@ def extract_examples(pdf_path: str, rubric_bullets: str) -> list:
                     log_debug(f"Detected Example {example_num} on page {page_idx+1}, line {line_num}")
                     continue
 
+                # Capture title if pending and line is non-empty.
                 if in_article and title_pending and line:
                     current_title = line
                     title_pending = False
@@ -145,13 +141,13 @@ def extract_examples(pdf_path: str, rubric_bullets: str) -> list:
                 if re.search(r'Task appropriateness\s*\d', line):
                     in_article = False
                     title_pending = False
-                    # Extract scores from this + next 10 lines/pages lines. Increased range is for safety.
+                    # Extract scores from this + next 10 lines/pages. Increased range is for safety.
                     score_lines = []
                     for i in range(page_idx, min(page_idx + 10, len(pages_text))):
                         score_lines.extend(pages_text[i].split('\n'))
 
                     scores = _extract_scores_from_lines(score_lines)
-                    if len(scores) >= 4:
+                    if len(scores) >= 4:    # Valid if at least 4 scores.
                         if 'OWP' not in scores:
                             avg = statistics.mean(scores.values())
                             scores['OWP'] = round(avg) # Rounds to nearest whole number for CEFR alignment.
@@ -179,7 +175,7 @@ def extract_examples(pdf_path: str, rubric_bullets: str) -> list:
     print(f"Succesfully extracted {len(samples)} complete student examples.")
     return samples
 
-def _extract_scores_from_lines(lines: list) -> dict:
+def _extract_scores_from_lines(lines: list) -> Dict[str, float]:
     """Helper that extracts TA, CC, GR, LR scores from table lines"""
     scores = {}
     patterns = {
@@ -244,7 +240,7 @@ if __name__ == "__main__":
     output_file = 'upv_samples.json'
     json.dump(samples, open(output_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
     print(f"✅ Saved {len(samples)} samples to {output_file}.")
-    print(f"Debug log saved to {DEBUG_LOG} for inspection")
+    print(f"Debug log saved to {DEBUG_LOG} for inspection.")
 
 
 train_samples, test_samples = train_test_split(samples, test_size=0.2, random_state=42)
