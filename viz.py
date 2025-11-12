@@ -16,7 +16,7 @@ sns.set_style('whitegrid')
 plt.rcParams["figure.figsize"] = (10,6)
 plt.rcParams["font.size"] = 12
 SAVE_FIGS = False    # Set to False to only show interactively.
-FIG_FMT = "png"     # "png" | "pdf" | "svg"
+FIG_FMT = "png"      # "png" | "pdf" | "svg"
 
 # 2. === LOAD DATA ===
 def load_summary() -> Dict[str, Any]:
