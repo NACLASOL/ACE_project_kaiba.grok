@@ -1,8 +1,12 @@
 import json
 import os
+import re
 from dotenv import load_dotenv
+from parse_data import extract_rubric
+from datetime import datetime
 from ace import LiteLLMClient
 from pathlib import Path
+from upv_grader import *
 
 load_dotenv()
 
@@ -15,10 +19,15 @@ MODEL_GROQ = 'groq/meta-llama/llama-4-scout-17b-16e-instruct'
 # Load evolved playbook (from last adaptation_summary.json)
 LOG_DIR = Path("logs")
 summary = json.load(open(LOG_DIR / "adaptation_summary.json"))
-last_playbook = summary["playbooks_logs"][-1] # Last snapshot (list of bullets).
-PLAYBOOK_PROMPT = "\n".join(last_playbook) # Convert to string.
+if "deltas_log" in summary and summary["deltas_log"]:
+    last_playbook = summary["deltas_log"][-1] # Last snapshot (list of bullets).
+else:
+    last_playbook = []
+PLAYBOOK_PROMPT = "\n".join(last_playbook) if last_playbook else "No evolved playbook found - using default" # Convert to string.
 
-# Client
+RUBRIC = extract_rubric(RUBRIC_FILE)
+
+# Client 
 client = LiteLLMClient(
     model=MODEL_GROQ,
     api_key=os.getenv("GROQ_API_KEY"),
@@ -47,30 +56,58 @@ You have decided to contribute, Write an ARTICLE in which you:
 Give your article a title. Write your ARTICLE in 180-220 words."""
 
     # Rubric from attached PDF - extract or hardcore (use extract_rubric from parse_data.py if dynamic).
-    RUBRIC = """• level 5 (Excellent): The text fully develops all content points with a wide range of relevant ideas and supporting details. It meets all the task requirements and text type conventions (including appropriate format and length for an article). Register and tone are entirely appropriate for the target context and are consistently maintained. The writing is well-organized and coherent, fully achieving the task’s purpose – the target reader is fully informed and engaged.
-• level 4 (Good): The text addresses all the main content points with relevant information, though some points could be more fully developed. It generally follows the required article format and conventions with only minor lapses (e.g. slight length deviation or minor format inconsistencies). Register and style are mostly appropriate for the task, with only occasional inconsistencies. The text is generally well-organized and clear, achieving the task with only minor shortcomings. The target reader is well informed overall.
-• level 3 (Satisfactory): The text addresses most of the required content points, with generally relevant information, though one or two points may be underdeveloped or omitted. There are several inconsistencies in following the article format and conventions, and the register or tone is not always appropriate for the task. The writing is adequately organized, and the task is mostly achieved. The target reader is on the whole informed, though a clearer overall structure would improve communication.
-• level 2 (Limited): The text addresses only some of the content points. Other key points are missing or only superficially covered, and parts of the text may be irrelevant to the task. It fails to meet many of the article format and length requirements, showing little awareness of text type conventions. Register and tone are often inappropriate or inconsistent, which may confuse or disengage the reader. The overall organization is weak and difficult to follow, so the task is only partially achieved and the target reader is only partially informed. 1 Level Task Achievement Performance Descriptors (B2 Writing – Article)
-• level 1 (Inadequate): The text fails to address most of the required content points, providing very little relevant information (possibly due to misunderstanding the task). It does not follow the required article format or length, showing no awareness of text type conventions. The register is completely inappropriate or inconsistent for the task. The text lacks coherent organization, making it very difficult to understand. Overall, the task is not achieved and the target reader is minimally informed. 2 Cohesion and Coherence Level Cohesion & Coherence Performance Descriptors (B2 Writing – Article)
-• level 5 (Excellent): • Wide range of cohesive devices (linking words, pronoun reference, conjunctions) used consistently and flexibly to signal logical relationships. • Paragraphing is very clear: each paragraph has a central idea, and ideas flow smoothly from one paragraph to the next. • Sentences and ideas are sequenced logically, with effective use of referencing (e.g., pronouns, demonstratives) and substitution to avoid repetition. • The overall structure is highly coherent: arguments build naturally, and the reader can easily follow the progression from introduction to conclusion.
-• level 4 (Good): • Range of linking words used mostly effectively to indicate relationships (addition, contrast, cause–effect). • Attempts some complex organizational patterns (e.g., using subordinate clauses, thematic progression), though not always perfectly executed. • Paragraphing is generally clear: most paragraphs focus on one main idea, and there is a logical progression between them. • The text is coherent overall: significant points are highlighted with supporting details, and readers can follow the main line of thought with minimal effort. 2 Level Cohesion & Coherence Performance Descriptors (B2 Writing – Article)
-• level 3 (Satisfactory): • Uses some basic linking words (and, but, so, because) correctly, but relies heavily on them, making transitions sometimes mechanical or repetitive. • Attempts paragraphing, though paragraphs may be uneven in length or occasionally lack a clear central idea. • Organization is adequate: ideas are presented in a generally logical order, but some connections between sentences or paragraphs may be unclear or abrupt. • The text is mostly coherent, but readers may need to re-read sections to grasp the intended relationships.
-• level 2 (Limited): • Uses few or inappropriate linking devices; sentences often joined by simple comma splices or run-ons. • Paragraphing is inconsistent or absent: some paragraphs contain multiple ideas, while others are overly short. • Ideas are poorly sequenced: the writer may jump between points without clear transitions, making it difficult to follow the argument. • Overall coherence is weak: parts of the text feel disconnected, and readers may struggle to identify how ideas relate to one another.
-• level 1 (Inadequate): • Rarely uses cohesive devices; there is little to no linking between sentences. • Paragraphing is absent or random: there is no clear division of ideas. • Sentences and ideas are disjointed, lacking any logical order or progression. • The text is incoherent: readers cannot follow the argument or see how points connect, making comprehension very difficult. 3 Grammatical Accuracy and Range 3 Level Grammatical Accuracy & Range Performance Descriptors (B2 Writing – Article)
-• level 5 (Excellent): • Consistently accurate use of a wide range of both simple and complex structures. • Flexibility in employing subordinate clauses, conditionals, and varied sentence patterns with virtually no error. • Spelling and punctuation are almost faultless; very rare slips do not distract the reader. • Errors are minimal and non-systematic, showing full command of B2 grammar.
-• level 4 (Good): • High accuracy in simple structures; mostly accurate control of complex structures (e.g., relative clauses, passive voice), with occasional slips that do not impede understanding. • Spelling and punctuation are generally correct, with only minor mistakes. • Demonstrates a good range of grammatical forms appropriate to B2, though complex forms may appear slightly “learned.”
-• level 3 (Satisfactory): • Reasonable control of simple structures; attempts complex forms (e.g., conditional sentences, complex noun phrases) with mixed success. • Frequent minor errors (word order, article usage, tense agreement), but meaning remains clear. • Spelling and punctuation are generally accurate but may show mother-tongue influence or inconsistency. • Range is mainly simple, with occasional correct complexity.
-• level 2 (Limited): • Frequent errors in simple structures (e.g., subject–verb agreement, basic tense forms) that sometimes impede communication. • Rare or inaccurate attempts at complex forms, often resulting in ungrammatical sentences. • Spelling and punctuation errors are noticeable and may distract the reader. • Range is restricted, relying heavily on basic forms and simple sentences. 4 Level Grammatical Accuracy & Range Performance Descriptors (B2 Writing – Article)
-• level 1 (Inadequate): • Very limited control of even simple grammatical forms—errors are persistent and often prevent comprehension. • Almost no correct use of complex structures. • Spelling and punctuation are very inaccurate (e.g., frequent mistakes in basic words, sentence-ending punctuation missing), making the text difficult to follow. • Range is virtually absent, with only isolated words or fragments used correctly. 4 Lexical Accuracy and Range Level Lexical Range & Accuracy Performance Descriptors (B2 Writing – Article)
-• level 5 (Excellent): • Wide range of vocabulary, including topic-specific and less common lexical items, used accurately and appropriately for communicative effect. • Effective variation in phrasing and wording to avoid repetition (e.g., synonyms, paraphrase). • Collocations and idiomatic expressions used correctly and naturally. • Occasional minor slips (e.g. single-word choice or register mismatch), but meaning is never obscured.
-• level 4 (Good): • Good range of vocabulary relevant to the topic, with generally accurate word choice. • Some variation in word use (e.g. synonyms, basic paraphrase) though with occasional repetition of common words. • Collocations and fixed phrases used mostly correctly; minor awkwardness may occur but does not hinder communication. • Errors (e.g. slight collocation mismatches or overgeneralizations) are infrequent and do not impede understanding. 5 Level Lexical Range & Accuracy Performance Descriptors (B2 Writing – Article)
-• level 3 (Satisfactory): • Adequate range of vocabulary for B2, but relies on common or general words rather than more precise or topic-specific terms. • Limited variation: noticeable repetition of the same lexical items or simple synonyms. • Some attempts at collocation or idiomatic language, but errors (e.g. unnatural combinations) occur and may distract the reader. • Word-choice errors (e.g. minor wrong register, slightly imprecise terms) occur occasionally, but overall meaning is clear.
-• level 2 (Limited): • Restricted lexical range, with heavy reliance on very basic and generic vocabulary. • Frequent repetition of common words and phrases; little or no paraphrasing. • Attempts at more advanced vocabulary often result in inappropriate or incorrect choice, leading to confusion. • Collocation and register errors are common and sometimes impede comprehension.
-• level 1 (Inadequate): • Very limited vocabulary, often unable to convey simple ideas accurately. • Near-constant repetition of the same basic words with no variation. • Frequent, severe word-choice errors (e.g. wrong meaning, register) that make comprehension difficult. • No correct use of collocations or idiomatic language; lexical inaccuracies seriously impede the reader’s understanding. 5 Overall Written Production 6 Level Overall Written Production Performance Descriptors (B2 Writing – Article)
-• level 5 (Excellent): • The writer fully meets the communicative purpose: the article engages the reader, conveys ideas fluently, and leaves a clear, persuasive impression. • Register and tone are entirely appropriate and consistently maintained throughout. • Text length, format, and style perfectly match the article task requirements. • The writing is cohesive, coherent, and well-balanced: introduction, body, and conclusion work together seamlessly. • Minor or no distracting errors; any slip does not detract from the overall impact.
-• level 4 (Good): • The writer effectively fulfills the communicative purpose: the article informs and engages, though a slight lack of flair may appear in places. • Register and tone are mostly appropriate, with only occasional lapses that do not confuse the reader. • Format and length are appropriate, with only minor deviations (e.g., slightly under/over word count or small misalignment of article conventions). • The text is coherent and well-structured, with logical progression; a few transitions might be less smooth. • Errors (grammar, vocabulary, or mechanics) are infrequent and non-distracting, allowing the reader to focus on content.
-• level 3 (Satisfactory): • The writer generally achieves the communicative purpose: the article is understandable and conveys the main message, but may lack consistency in engagement. • Register and tone show occasional inconsistency (e.g., informal phrasing where formality is expected), but do not seriously hinder comprehension. • Format or length may deviate (e.g., paragraphs too short/long, minor omission of article conventions) but the reader still recognizes it as an article. • The text is adequately organized, though some transitions or paragraph breaks may be abrupt or uneven. • Errors (grammar, vocabulary, mechanics) are noticeable but do not impede understanding; the reader can still follow the argument with minimal effort. 7 Level Overall Written Production Performance Descriptors (B2 Writing – Article)
-• level 2 (Limited): • The writer only partially fulfills the communicative purpose: key messages are conveyed but with unclear or underdeveloped sections, reducing reader engagement. • Register and tone are often inappropriate or inconsistent (e.g., overly informal or overly formal in places), causing occasional confusion. • Format and organization fall short of article conventions (e.g., missing title, poorly defined introduction/conclusion, unclear paragraphing). • The text is weakly organized, with frequent abrupt shifts or lack of logical sequence, requiring the reader to re-read for clarity. • Errors in grammar, vocabulary, and mechanics are frequent and sometimes impede comprehension; the reader must expend effort to understand content.
-• level 1 (Inadequate): • The writer fails to fulfill the communicative purpose: the article is disjointed, lacks a clear message, and does not engage the reader. • Register and tone are inappropriate throughout, causing significant confusion (e.g., inconsistent voice, inappropriate style). • Format conventions are absent or ignored (e.g., no clear article structure, missing title, no separation into paragraphs). • Organization is chaotic: ideas are scattered without logical progression, making it very difficult to follow. • Errors are constant and severe in grammar, vocabulary, and mechanics, severely impeding understanding and rendering the text largely incomprehensible. 8
-"""
 
+    prompt = f"""TASK: {TASK_PROMPT}
+    
+STUDENT ARTICLE TITLE: {article_title}
+STUDENT ARTICLE:
+{article_text}
+
+RUBRIC:
+{RUBRIC}
+
+INSTRUCTIONS: Grade this article using the rubric. Analyze step-by-step. Output raw JSON: {{"reasoning": "analysis", "final_answer": "RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0"}}
+
+**PLAYBOOK STRATEGIES:**
+{PLAYBOOK_PROMPT}"""
+    
+    messages = [{"role": "user", "content": prompt}]
+    response = client.complete(messages=messages, prompt=TASK_PROMPT)
+
+    try:
+        content = generator.generate(question=messages, context="", playbook=last_playbook)
+        parsed = json.loads(content) # Parse JSON.
+        justification = parsed["reasoning"]
+        final_answer = parsed["final_answer"]
+    except json.JSONDecodeError:
+        raise ValueError("LLM output not valid JSON") 
+
+    # Parse scores from final_answer.
+    match = re.search(r'RESULTS\s*,\s*TA:(\d\.\d)\s*,\s*CC:(\d\.\d)\s*,\s*GR:(\d\.\d)\s*,\s*LR:(\d\.\d)\s*,\s*OWP:(\d\.\d)', final_answer, re.IGNORECASE)
+    if match:
+        scores = {
+            "TA": float(match.group(1)),
+            "CC": float(match.group(2)),
+            "GR": float(match.group(3)),
+            "LR": float(match.group(4)),
+            "OWP": float(match.group(5)),
+        }
+    else:
+        raise ValueError("Invalid score format in LLM output.")
+
+    # Log for audit.
+    log_entry = {"timestamp": datetime.now().isoformat(), "article_title": article_title, "scores": scores, "justification": justification}
+    with open("logs/grades.log", "a") as f:
+        json.dump(log_entry, f)
+        f.write("\n")
+
+    return {"scores": scores, "justification": justification}
+
+# Example usage.
+if __name__ == "__main__":
+    # Test with attached example from PDF.
+    title = "Being at classroom"
+    text = "The goal of this article is to emphasize the importance of attending classes physically. With the COVID-19 CRISIS arrival, Every academic exam, task or class had to be done online. The use of platforms like Microsoft Teams and Zoom from teachers increased massively, remote classes have a huge advantage ahead physical in terms of availability and time-line dedication. However, online classes are less effective for improve learning. In my opinion, is way better attending a lesson in a calsroom, where you're face-to-face with your teacher, and your doubts can be solved. Besides, it's harder to see on camera when your proffesor writes some thing on the board. In conclusion, we need to make sure the advantages of online classes don't Persuade us about attending physically. Moreover, teachers have to atract students somehow. Maybe giving Some gifts or rewarding them on other way."
+
+    result = grade_article(title, text)
+    print(json.dumps(result, indent=2))
