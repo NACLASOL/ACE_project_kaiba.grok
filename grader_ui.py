@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from grade_article import *
 
-st.title("UPV CEFT B2 Article Grader")
+st.title("UPV CEFR B2 Article Grader")
 
 # Upload or input.
 article_title = st.text_input("Article Title")
@@ -13,7 +13,7 @@ if st.button("Grade Article"):
         with st.spinner("Grading..."):
             result = grade_article(article_title, article_text)
         
-        st.sucess("Grading Complete!")
+        st.success("Grading Complete!")
         st.json(result["scores"])
         st.markdown("### Justification")
         st.write(result["justification"])
