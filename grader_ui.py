@@ -30,3 +30,4 @@ if uploaded_file:
         st.download_button("Download Grades", data=json.dumps(grades, indent=2), file_name="grades.json")
 
 # TO RUN: streamlit run grader_ui.py
+# TO STOP: `ctrl + c` inside terminal.

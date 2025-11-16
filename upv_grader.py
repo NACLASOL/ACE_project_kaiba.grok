@@ -10,7 +10,7 @@ from parse_data import rubric_bullets
 
 load_dotenv()
 
-
+# THIS FUNCTION DOES NOT WORK.
 class StrippingLiteLLMClient(LiteLLMClient):
     '''Custom LiteLLMClient that strips Markdown fences from LLM response before returning'''
     def query(self, prompt, **kwargs):
