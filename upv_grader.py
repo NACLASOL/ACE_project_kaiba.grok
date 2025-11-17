@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 from dotenv import load_dotenv
 from ace import LiteLLMClient, Generator, Reflector, Curator, Playbook
+from opik import track
 from parse_data import rubric_bullets
 
 
