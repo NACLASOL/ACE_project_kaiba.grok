@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-from grade_article import *
+from opik import track
+from grade_article import grade_article
 
 st.title("UPV CEFR B2 Article Grader")
 
@@ -8,10 +9,14 @@ st.title("UPV CEFR B2 Article Grader")
 article_title = st.text_input("Article Title")
 article_text = st.text_area("Article Text", height=300)
 
+@track
+def ui_grade(title, text):
+    return grade_article(title, text)
+
 if st.button("Grade Article"):
     if article_title and article_text:
         with st.spinner("Grading..."):
-            result = grade_article(article_title, article_text)
+            result = ui_grade(article_title, article_text)
         
         st.success("Grading Complete!")
         st.json(result["scores"])
@@ -27,7 +32,7 @@ if uploaded_file:
     grades = []
     for _, row in df.iterrows():
         grades.append(grade_article(row["title"], row["text"]))
-        st.download_button("Download Grades", data=json.dumps(grades, indent=2), file_name="grades.json")
+    st.download_button("Download Grades", data=json.dumps(grades, indent=2), file_name="grades.json")
 
 # TO RUN: streamlit run grader_ui.py
 # TO STOP: `ctrl + c` inside terminal.
