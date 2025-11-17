@@ -7,13 +7,20 @@
 
 ## Quick-start guide.
 
-### Step 1: Create you virtual environment.
-Create your virtual environment:
+### Step 1: Create a virtual environment.
+Create and activate your virtual environment:
 
 ```bash
 # For Windows.
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 python -m venv <your-venv-name>
+# Activate.
+\<your-venv-name>\Scripts\Activate.ps1
+
+# For MacOS
+python3 -m venv <your-venv-name>
+# Activate.
+source <your-venv-name>/bin/activate
 ```
 
 
@@ -30,7 +37,7 @@ pip install -r .\requirements.txt
 
 Create a `.env` file with your API key:
 
-```bash
+```python
 # For Google.
 GOOGLE_API_KEY=your-key-here
 
@@ -64,21 +71,21 @@ streamlit run grader_ui.py
 ## File functionality.
 
 - `adapt.py`:
-Main adaptation process. Creates an AI updated Notebook.
+Main adaptation process. Uses the main ACE roles to create an AI updated ACE Notebook.
 
 - `grade_article.py`:
-Grades a single CEFR B2 exam article using the latest Playbook adaptation.
+This file grades a single CEFR B2 exam article using the latest Playbook adaptation.
 
 - `grader_ui.py`:
 Basic Streamlit application to grade student articles.
 
 - `parse_data.py`:
-Extracts example-article information from a PDF file.
+Extracts article examples and their corresponding scores from a PDF file.
 
 - `upv_grader`:
-Configures the LLM's used by the `adapt.py` file, initializes the main ACE roles, and creates initial Playbook seeds.
+Configures the LLM's used by the `adapt.py` file, initializes the main ACE roles, and creates the initial Playbook seeds.
 
 - `viz.py`:
-Graphic tool to visualize the evolution of the Playbook adaptations.
+Graphic tool to visualize the evolution of the Playbook adaptations, including the number of delta operations (changes to the Playbook) performed in one epoch (iteration), and the number of mismatches (differences between AI score and human score per article example).
 
 Made By: Nicholas Clancy Soler.
