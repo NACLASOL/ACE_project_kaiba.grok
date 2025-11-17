@@ -9,7 +9,7 @@ st.title("UPV CEFR B2 Article Grader")
 article_title = st.text_input("Article Title")
 article_text = st.text_area("Article Text", height=300)
 
-@track
+@track(project_name=os.getenv("OPIK_PROJECT_NAME"))
 def ui_grade(title, text):
     return grade_article(title, text)
 
