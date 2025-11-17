@@ -241,7 +241,6 @@ if __name__ == "__main__":
     json.dump(samples, open(output_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
     print(f"✅ Saved {len(samples)} samples to {output_file}.")
     print(f"Debug log saved to {DEBUG_LOG} for inspection.")
-    print(f"The Parsed Rubric is as Follows:, {rubric_bullets}")
 
 
 train_samples, test_samples = train_test_split(samples, test_size=0.2, random_state=42)
