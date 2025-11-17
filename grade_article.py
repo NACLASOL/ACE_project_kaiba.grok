@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from parse_data import extract_rubric
 from datetime import datetime
 from ace import *
+from opik import track
 from pathlib import Path
 from upv_grader import *
 
@@ -38,6 +39,7 @@ client = LiteLLMClient(
     temperature=0.1,
 )
 
+@track(project_name=os.getenv("OPIK_PROJECT_NAME"))
 def grade_article(article_title: str, article_text: str, ) -> dict:
     """
     Grades a single B2 English Writing Artile using the evolved playbook.
