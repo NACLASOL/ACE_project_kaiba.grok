@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from parse_data import extract_rubric
 from datetime import datetime
 from ace import *
+from opik import track
 from pathlib import Path
 from upv_grader import *
 
@@ -12,32 +13,16 @@ load_dotenv()
 
 RUBRIC_FILE = "internship.enhance_b2_article_writing_rubric.pdf"
 
-# AI MODELS
-MODEL_GROQ = 'groq/meta-llama/llama-4-scout-17b-16e-instruct'
-
-
 # Load evolved playbook (from last adaptation_summary.json)
 LOG_DIR = Path("logs")
 summary = json.load(open(LOG_DIR / "adaptation_summary.json"))
 latest_playbook = Playbook.load_from_file("logs/latest_playbook.json")
 
-'''
-if "deltas_log" in summary and summary["deltas_log"]:
-    last_playbook = summary["deltas_log"][-1] # Last snapshot (list of bullets).
-else:
-    last_playbook = []
-'''
 PLAYBOOK_PROMPT = "\n".join(str(latest_playbook.bullets())) if latest_playbook else "No evolved playbook found - using default" # Convert to string.
 
 RUBRIC = extract_rubric(RUBRIC_FILE)
 
-# Client 
-client = LiteLLMClient(
-    model=MODEL_GROQ,
-    api_key=os.getenv("GROQ_API_KEY"),
-    temperature=0.1,
-)
-
+@track(project_name=os.getenv("OPIK_PROJECT_NAME"))
 def grade_article(article_title: str, article_text: str, ) -> dict:
     """
     Grades a single B2 English Writing Artile using the evolved playbook.

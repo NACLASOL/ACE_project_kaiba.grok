@@ -2,11 +2,12 @@ import re
 import json
 from datetime import datetime
 from pathlib import Path
-from parse_data import train_samples, test_samples, one_sample
 from statistics import mean
+from opik import track
+from parse_data import train_samples, test_samples, one_sample
 from upv_grader import *
 
-EPOCHS = 1
+EPOCHS = 1  
 mismatches_log = []
 deltas_log = []
 playbooks_log = []
@@ -99,5 +100,8 @@ for epoch in range(EPOCHS):
     print(f"Epoch {epoch}: Avg mismatch {avg_mismatch:.3f}, Playbook size {len(playbook.bullets())}")
 
 json.dump({'mismatches_log': mismatches_log, 'deltas_log': deltas_log}, open('logs/adaptation_summary.json', 'w'), indent=2)
+
+playbook.save_to_file("logs/latest_playbook.json")
+
 
 print("✅ Adaptation Complete!")

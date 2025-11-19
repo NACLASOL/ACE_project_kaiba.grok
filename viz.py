@@ -61,7 +61,7 @@ def plot_mismatch_and_playbook(epochs_data: List[Dict[str, Any]]):
     ax2.bar(epochs, playbook_sizes, alpha=0.6, color=color, label="Playbook Size")
     ax2.tick_params(axis="y", labelcolor=color)
 
-    fig.suptitle("Adaptation Progress - Mistamch & Playbook Growth")
+    fig.suptitle("Adaptation Progress - Mistmatch & Playbook Growth")
     fig.tight_layout()
     if SAVE_FIGS:
         plt.savefig(LOG_DIR / f"mismatch_playbook.{FIG_FMT}", dpi=300)
