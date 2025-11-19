@@ -1,3 +1,5 @@
+import os
+import json
 import streamlit as st
 import pandas as pd
 from opik import track
@@ -28,11 +30,21 @@ if st.button("Grade Article"):
 # Upload student articles in batch (CSV with title, text columns).
 uploaded_file = st.file_uploader("Batch CSV Upload", type="csv")
 if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-    grades = []
-    for _, row in df.iterrows():
-        grades.append(grade_article(row["title"], row["text"]))
-    st.download_button("Download Grades", data=json.dumps(grades, indent=2), file_name="grades.json")
+    try:
+        
+        # Reads CSV files with semicolon separation, handles quotes, and uses python engine for multi-line.
+        df = pd.read_csv(uploaded_file, sep=";", quotechar='"', engine='python')
+
+        # Validate columns.
+        if 'title' not in df.columns or 'text' not in df.columns:
+            st.error("CSV must have 'title' and 'text' columns.")
+        else:
+            grades = []
+            for _, row in df.iterrows():
+                grades.append(grade_article(row["title"], row["text"]))
+            st.download_button("Download Grades", data=json.dumps(grades, indent=2), file_name="grades.json")
+    except Exception as e:
+        st.error(f"Error reading CSV: {str(e)}. Ensure semicolon-separated with quoted multi-line text.")
 
 # TO RUN: streamlit run grader_ui.py
 # TO STOP: `ctrl + c` inside terminal.
