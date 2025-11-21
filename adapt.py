@@ -95,7 +95,7 @@ for epoch in range(EPOCHS):
 
     # LOG
     epoch_log = {'epoch': epoch, 'avg_mismatch': avg_mismatch, 'playbook_size': len(playbook.bullets())}
-    json.dump(epoch_log, open(f'logs/epoch-{epoch:02d}.json', 'w'), indent=2)
+    json.dump(epoch_log, open(f'logs/epochs/epoch-{epoch:02d}.json', 'w'), indent=2)
 
     print(f"Epoch {epoch}: Avg mismatch {avg_mismatch:.3f}, Playbook size {len(playbook.bullets())}")
 
