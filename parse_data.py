@@ -237,7 +237,7 @@ samples = extract_examples(EXAMPLES_FILE, rubric_bullets)
 if __name__ == "__main__":
 
     # Save the file.
-    output_file = 'upv_samples.json'
+    output_file = 'logs/samples/upv_samples.json'
     json.dump(samples, open(output_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
     print(f"✅ Saved {len(samples)} samples to {output_file}.")
     print(f"Debug log saved to {DEBUG_LOG} for inspection.")
@@ -245,6 +245,6 @@ if __name__ == "__main__":
 
 train_samples, test_samples = train_test_split(samples, test_size=0.2, random_state=42)
 one_sample = [samples[0]]
-json.dump(train_samples, open('logs/train_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
-json.dump(test_samples, open('logs/test_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
-json.dump(one_sample, open('logs/one_sample.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+json.dump(train_samples, open('logs/samples/train_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+json.dump(test_samples, open('logs/samples/test_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+json.dump(one_sample, open('logs/samples/one_sample.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
