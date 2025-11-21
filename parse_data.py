@@ -8,8 +8,8 @@ from typing import List, Dict
 from sklearn.model_selection import train_test_split
 
 # === CONFIGURATION ===
-RUBRIC_FILE = 'internship.enhance_b2_article_writing_rubric.pdf'
-EXAMPLES_FILE = 'internship.b2_writing_examples_scores.pdf'
+RUBRIC_FILE = 'parse/internship.enhance_b2_article_writing_rubric.pdf'
+EXAMPLES_FILE = 'parse/internship.b2_writing_examples_scores.pdf'
 TASK_PROMPT = """You have just seen the following advertisement in the university magazine:
 Share with us what you think about the importance of physically attending classes in-person for university students instead of online classes. We're looking for articles about the benefits of studying in a classroom with a teacher. The best article will be published in our university magazine and the winner will receive a €200 gift card.
 You have decided to contribute, Write an ARTICLE in which you:

@@ -11,7 +11,7 @@ from upv_grader import *
 
 load_dotenv()
 
-RUBRIC_FILE = "internship.enhance_b2_article_writing_rubric.pdf"
+RUBRIC_FILE = "parse/internship.enhance_b2_article_writing_rubric.pdf"
 
 # Load evolved playbook (from last adaptation_summary.json)
 LOG_DIR = Path("logs")
