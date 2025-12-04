@@ -7,6 +7,12 @@
 
 ## Quick-start guide.
 
+Clone this repository using:
+```bash
+git clone repository-link-here
+```
+Then proceed as follows inside the repository folder.
+
 ### Step 1: Create a virtual environment.
 Create and activate your virtual environment:
 
@@ -30,6 +36,9 @@ Install the repository dependendies using the `requirements.txt` file:
 ```bash
 # For Windows.
 pip install -r .\requirements.txt
+
+# For MacOS.
+pip install -r requirements.txt
 ```
 
 
@@ -68,6 +77,24 @@ streamlit run grader_ui.py
 # TO STOP: `ctrl + c` inside terminal. Then close the application tab in your browser.
 ```
 
+## Using Opik Tracking.
+
+Add the following to your `.env` file:
+
+```python
+# OPIK TRACKING.
+OPIK_PROJECT_NAME=your-project-name-here 
+COMET_API_KEY=your-key-here
+```
+Opik should be installed using the project `requirements.txt` file.
+You **may** need to configure your Opik client in your terminal:
+
+```bash
+opik configure
+```
+
+When running any of the following files: `adapt.py`, `grade_article.py`, `grader_ui.py`; your traces will be logged to your Opik account, as configured during the Opik configuration.
+
 ## File functionality.
 
 - `adapt.py`:
@@ -77,10 +104,10 @@ Main adaptation process. Uses the main ACE roles to create an AI updated ACE Not
 This file grades a single CEFR B2 exam article using the latest Playbook adaptation.
 
 - `grader_ui.py`:
-Basic Streamlit application to grade student articles.
+Basic Streamlit application to grade student articles individually or in batches.
 
 - `parse_data.py`:
-Extracts article examples and their corresponding scores from a PDF file.
+Extracts the CEFR B2 English Article Writing Rubric and student article examples with their corresponding scores from their corresponding PDF files.
 
 - `upv_grader`:
 Configures the LLM's used by the `adapt.py` file, initializes the main ACE roles, and creates the initial Playbook seeds.
