@@ -21,6 +21,7 @@ Give your article a title. Write your ARTICLE in 180-220 words."""
 
 DEBUG_LOG = 'logs/parse_debug.log'
 Path('logs').mkdir(exist_ok=True) # Create dir.
+Path('logs/samples').mkdir(exist_ok=True)
 open(DEBUG_LOG, 'w').close() # Cleares the log.
 
 def log_debug(message: str):
