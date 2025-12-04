@@ -14,6 +14,8 @@ playbooks_log = []
 
 Path('logs').mkdir(exist_ok=True) # Ensure directory.
 
+Path('logs/epochs').mkdir(exist_ok=True) # Create 'epochs' directory.
+
 def log_failure(final_answer, error_message=""):
     with open('logs/epoch_failure.log', 'w') as f:
         f.write(f"---\n{datetime.now()}\nError: {error_message}\n\n{final_answer}\n---\n")
