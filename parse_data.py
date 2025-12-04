@@ -8,7 +8,7 @@ from typing import List, Dict
 from sklearn.model_selection import train_test_split
 
 # === CONFIGURATION ===
-RUBRIC_FILE = 'parse/internship.enhance_b2_article_writing_rubric.pdf'
+RUBRIC_FILE = 'parse/internship.enhance_b2_article_writing_rubric_structured.pdf'
 EXAMPLES_FILE = 'parse/internship.b2_writing_examples_scores.pdf'
 TASK_PROMPT = """You have just seen the following advertisement in the university magazine:
 Share with us what you think about the importance of physically attending classes in-person for university students instead of online classes. We're looking for articles about the benefits of studying in a classroom with a teacher. The best article will be published in our university magazine and the winner will receive a €200 gift card.
@@ -27,69 +27,236 @@ def log_debug(message: str):
     with open(DEBUG_LOG, 'a', encoding='utf-8') as f:
         f.write(message + '\n')
 
-# === RUBRIC EXTRACT (Returns formatted bullet list) ===
+def _fix_concatenated_text(text):
+    """
+    Fixes text where spaces between words have been removed due to PDF extraction issues.
+    
+    Uses Dynamic Programming to find the optimal word boundaries by testing against
+    a comprehensive English vocabulary.
+    
+    Example: "Thetextaddresses" → "The text addresses"
+    """
+    
+    vocabulary = {
+        'the', 'a', 'an', 'is', 'are', 'be', 'was', 'were', 'been', 'being',
+        'to', 'of', 'in', 'on', 'at', 'by', 'for', 'from', 'with', 'about', 'into',
+        'or', 'and', 'but', 'not', 'no', 'nor',
+        'have', 'has', 'had', 'do', 'does', 'did', 'should', 'would', 'could', 'can',
+        'may', 'might', 'must', 'will', 'shall', 'having', 'doing',
+        'it', 'its', 'this', 'that', 'these', 'those', 'which', 'who', 'whom',
+        'he', 'she', 'they', 'them', 'his', 'her', 'your', 'our', 'my',
+        'text', 'addresses', 'address', 'content', 'points', 'relevant', 'information',
+        'though', 'some', 'could', 'more', 'most', 'fully', 'developed', 'generally',
+        'follows', 'follow', 'required', 'require', 'article', 'format', 'conventions',
+        'register', 'style', 'appropriate', 'task', 'occasional', 'inconsistencies',
+        'inconsistency', 'well', 'organized', 'organize', 'clear', 'clearly',
+        'achieving', 'achieve', 'target', 'reader', 'readers', 'informed', 'inform',
+        'overall', 'when', 'where', 'what', 'how', 'also', 'other', 'such', 'only',
+        'even', 'just', 'still', 'very', 'lapses', 'lapse', 'length', 'deviation',
+        'minor', 'mostly', 'shortcomings', 'shortcoming', 'writing', 'write',
+        'coherent', 'coherence', 'purpose', 'engaged', 'meeting', 'meet', 'range',
+        'attempt', 'attempts', 'complex', 'organizational', 'pattern', 'patterns',
+        'using', 'use', 'subordinate', 'clause', 'clauses', 'thematic', 'progression',
+        'perfectly', 'execute', 'executed', 'paragraph', 'paragraphs', 'idea', 'ideas',
+        'logical', 'minimal', 'effort', 'devices', 'device', 'linking', 'words',
+        'signal', 'signals', 'sequenced', 'sequence', 'referencing', 'reference',
+        'substitution', 'repetition', 'all', 'main', 'demonstrates', 'demonstrate',
+        'good', 'appropriate', 'feel', 'feels', 'disconnect', 'disconnected',
+        'understand', 'understanding', 'structures', 'structure', 'accuracy', 'error',
+        'errors', 'spelling', 'punctuation', 'faultless', 'slips', 'slip', 'distracts',
+        'distract', 'minimal', 'systematic', 'command', 'grammar', 'relative',
+        'passive', 'voice', 'occasional', 'impede', 'reasonable', 'control',
+        'mixed', 'success', 'frequent', 'word', 'order', 'tense', 'agreement',
+        'meaning', 'remains', 'mother', 'tongue', 'influence', 'isolated',
+        'fragment', 'fragments', 'limited', 'persistent', 'prevent', 'comprehension',
+        'almost', 'absent', 'inaccurate', 'basic', 'difficult', 'vocabulary',
+        'convey', 'near', 'constant', 'severe', 'choice', 'collocation',
+        'collocations', 'idiomatic', 'language', 'seriously', 'effectively',
+        'relationships', 'addition', 'contrast', 'cause', 'effect', 'paragraphing',
+        'central', 'flow', 'smoothly', 'sentences', 'pronouns', 'demonstratives',
+        'avoid', 'introduction', 'conclusion', 'answers', 'communicative', 'fluently',
+        'impression', 'consistently', 'maintained', 'balance', 'seamlessly',
+        'distracting', 'detract', 'impact', 'writer', 'engages', 'slightly',
+        'lack', 'flair', 'confuse', 'recognize', 'consistency', 'informal',
+        'formality', 'hinder', 'abrupt', 'uneven', 'noticeable', 'argument',
+        'partially', 'fulfills', 'unclear', 'underdeveloped', 'confusion',
+        'missing', 'title', 'poorly', 'defined', 'chaotic', 'scattered',
+        'constant', 'severe', 'rendering', 'largely', 'incomprehensible',
+        'there', 'their', 'were', 'been', 'are', 'being', 'having',
+    }
+    
+    if text.count(' ') > max(2, len(text) // 15):
+        return text
+    
+    n = len(text)
+    text_lower = text.lower()
+    
+    dp = [(float('inf'), -1)] * (n + 1)
+    dp[0] = (0, 0)
+    
+    for i in range(n):
+        if dp[i][0] == float('inf'):
+            continue
+        
+        current_cost = dp[i][0]
+        
+        for j in range(i + 1, min(i + 21, n + 1)):
+            substring = text_lower[i:j]
+            
+            if substring in vocabulary:
+                word_cost = 0  # Known word = free
+            elif len(substring) == 1 and substring.isalpha():
+                word_cost = 0.5  # Single letter = minimal cost
+            elif substring[-1] in '.,;:!?' or all(c.isdigit() or not c.isalpha() for c in substring):
+                word_cost = 0  # Punctuation/numbers = free
+            else:
+                word_cost = 1  # Unknown word = cost
+            
+            total_cost = current_cost + word_cost
+            
+            if total_cost < dp[j][0]:
+                dp[j] = (total_cost, i)
+    
+    if dp[n][0] == float('inf'):
+        return text
+    
+    words = []
+    pos = n
+    while pos > 0:
+        prev_pos = dp[pos][1]
+        word = text[prev_pos:pos]
+        words.append(word)
+        pos = prev_pos
+    
+    words.reverse()
+    
+    result = ' '.join(words)
+    result = re.sub(r'\s+', ' ', result)  # Normalize spaces
+    result = re.sub(r'\s+([.,;:!?\)])', r'\1', result)  # No space before punctuation
+    result = re.sub(r'([(])\s+', r'\1', result)  # No space after opening paren
+    result = re.sub(r'\s+,', ',', result)  # No space before comma
+    
+    return result.strip()
+
+# === CORRECTED RUBRIC EXTRACT (Returns formatted bullet list) ===
 def extract_rubric(pdf_path: str) -> str:
     """
-    Extracts the full rubric from the rubric PDF and returns a 
-    clean string of bullets.
+    Extracts the full rubric from the NEW structured rubric PDF format.
+    
+    NEW FORMAT (internship.enhance_b2_article_writing_rubric_structured.pdf):
+    - Category Name (no numbering, no "Level ... Performance Descriptors" header)
+    - 5 (Excellent)
+    - • Bullet points describing level 5
+    - 4 (Good)
+    - • Bullet points describing level 4
+    - etc.
+    
+    Returns a clean formatted string with category headers and level descriptions.
     """
-    rubric_text = []
-    current_category = ""
+    rubric_lines = []
+    
     try:
         with pdfplumber.open(pdf_path) as pdf:
             full_text = '\n'.join(page.extract_text() or "" for page in pdf.pages)
-            log_debug(f"Full rubric text:\n\n{full_text[:2000]}...\n") # Logs first 2000 chars for debugging.
-
-            # Split full text into sections by category headers (e.g., "1 Task Achievement", "2 Cohesion and Coherence".
-            # Pattern finds numbered categories like "1 Task Achievement" or "3 Grammatical Accuary and Range".
-            section_pattern = r'(\d+)\s+([A-Za-z\s&]+)\s*Level\s+([A-Za-z\s&]+)\s+Performance Descriptors'
-            sections = re.split(section_pattern, full_text, flags=re.DOTALL | re.IGNORECASE)
+            log_debug(f"FULL RUBRIC TEXT (first 3000 chars):\n{full_text[:3000]}\n{'='*80}\n")
         
-        # Process each section
-        i = 0
-        while i < len(sections):
-            part = sections[i].strip()
-            if re.match(r'^\d+$', part): # If it's a number (start of a category).
-                category_num = part
-                category_name = sections[i+1].strip() if i+1 < len(sections) else ""
-                # Skip the "Level" and "Performance Descriptors" parts if matched.
-                i += 3
-                description_text = sections[i] if i < len(sections) else ""
-
-                # Append the category header.
-                rubric_text.append(f"\n**{category_name}**")
-
-                # Extract levels from description_text.
-                level_pattern = r'(\d) \(([^)]+)\)\s*(.*?)(?=\d \(|$|Level)'
-                levels = re.findall(level_pattern, description_text, re.DOTALL)
-                for level_num, level_label, desc, in levels:
-                    clean_desc = re.sub(r'\s+', ' ', desc.strip()) # Normalize the whitespace.
-                    rubric_text.append(f"• Level {level_num} ({level_label}): {clean_desc}")
-
-            i += 1
-
-        final_text = "\n".join(rubric_text).strip()
-        print(f"Extracted structured rubric with categories")
-        log_debug(f"Extracted rubric:\n{final_text}")
-
-        return final_text
-
-    except Exception as e:
-        print(F"Error parsing rubric: {e}")
-        log_debug(f"Error: {e}")
-        # This is the fallback for the 5 criteria.
-        categories = [
-            "Task Achievement", "Cohesion and Coherence", "Grammatical Accuracy",
-            "Lexical Accuracy", "Overall Written Production",
+        # Pre-clean: normalize whitespace but preserve line breaks for structure
+        full_text = re.sub(r'\n\s*\n', '\n', full_text)  # Remove multiple blank lines
+        
+        # Define the 5 expected categories in order (matching new rubric exactly)
+        expected_categories = [
+            "Task Achievement",
+            "Cohesion and Coherence", 
+            "Grammatical Accuracy and Range",
+            "Lexical Accuracy and Range",
+            "Overall Written Production"
         ]
+        
+        # Build a regex pattern that captures each category section
+        # Pattern: Category name, followed by all level blocks until next category or end
+        category_sections = []
+        
+        for i, category in enumerate(expected_categories):
+            # Escape special regex characters in category name
+            escaped_category = re.escape(category)
+            
+            # Build lookahead for next category (or end of string)
+            if i < len(expected_categories) - 1:
+                next_category = re.escape(expected_categories[i + 1])
+                lookahead = f"(?={next_category}|\\Z)"
+            else:
+                lookahead = "\\Z"  # Last category goes to end
+            
+            # Pattern: category name followed by content until next category
+            pattern = f"{escaped_category}\\s*(.+?){lookahead}"
+            match = re.search(pattern, full_text, re.DOTALL | re.IGNORECASE)
+            
+            if match:
+                category_content = match.group(1).strip()
+                category_sections.append((category, category_content))
+                log_debug(f"Found category: {category} with {len(category_content)} chars")
+            else:
+                log_debug(f"WARNING: Category '{category}' not found in rubric")
+        
+        # Now extract levels from each category section
+        for category_name, content in category_sections:
+            rubric_lines.append(f"\n**{category_name}**\n")
+            
+            # Extract level blocks: "5 (Excellent)", "4 (Good)", etc.
+            # Pattern matches: number, parenthesized label, followed by bullet points
+            level_pattern = r'(\d)\s*\(([A-Za-z]+)\)\s*((?:•[^\n]+(?:\n(?!•?\d\s*\().*?)*)*)'
+            levels = re.findall(level_pattern, content, re.DOTALL)
+            
+            if not levels:
+                log_debug(f"WARNING: No levels found for category '{category_name}'")
+                continue
+            
+            for lvl_num, lvl_name, desc in levels:
+                # Clean up descriptor text
+                desc = desc.strip()
+                
+                # Remove page numbers that might have been captured
+                desc = re.sub(r'\n\s*\d+\s*$', '', desc)
+                
+                # Replace multiple spaces with single space
+                desc = re.sub(r'\s+', ' ', desc)
+                
+                # Ensure bullet points are preserved and formatted consistently
+                desc = re.sub(r'•\s*', '• ', desc)
+                
+                rubric_lines.append(f"• Level {lvl_num} ({lvl_name}): {desc}")
+                
+            log_debug(f"Extracted {len(levels)} levels for '{category_name}'")
+        
+        final_rubric = "\n".join(rubric_lines).strip()
+        log_debug(f"\nFinal RUBRIC:\n{final_rubric}\n{'='*80}\n")
+        
+        print(f"✅ Extracted rubric with {len(category_sections)} categories")
+        return final_rubric
+        
+    except Exception as e:
+        print(f"❌ Error parsing rubric: {e}")
+        log_debug(f"Error: {e}")
+        
+        # Fallback rubric with 5 categories (using correct category names)
+        categories = [
+            "Task Achievement", 
+            "Cohesion and Coherence", 
+            "Grammatical Accuracy and Range",
+            "Lexical Accuracy and Range", 
+            "Overall Written Production"
+        ]
+        
         fallback = ""
         for cat in categories:
             fallback += f"\n**{cat}**\n"
             fallback += "• Level 5 (Excellent): Excellent performance.\n"
             fallback += "• Level 4 (Good): Good performance.\n"
-            fallback += "• Level 4 (Good): Good performance.\n"
+            fallback += "• Level 3 (Satisfactory): Satisfactory performance.\n"
             fallback += "• Level 2 (Limited): Limited performance.\n"
-            fallback += "• Level 2 (Limited): Limited performance.\n"
+            fallback += "• Level 1 (Inadequate): Inadequate performance.\n"
+        
+        print("⚠️  Using fallback rubric due to extraction error")
         return fallback.strip()
     
 
