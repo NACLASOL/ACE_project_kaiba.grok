@@ -55,7 +55,7 @@ class StrippingLiteLLMClient(LiteLLMClient):
         return response
 
 MODEL_GROQ = 'groq/meta-llama/llama-4-scout-17b-16e-instruct'
-MODEL_2 = 'groq/llama-3.3-70b-versatile'
+MODEL_2 = 'groq/moonshotai/kimi-k2-instruct'
 MODEL_3 = 'groq/meta-llama/llama-guard-4-12b'
 MODEL_GOOGLE = 'gemini/gemini-2.0-flash'
 
