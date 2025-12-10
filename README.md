@@ -21,7 +21,7 @@ Create and activate your virtual environment:
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 python -m venv <your-venv-name>
 # Activate.
-\<your-venv-name>\Scripts\Activate.ps1
+\<your-venv-name>\Scripts\activate
 
 # For MacOS
 python3 -m venv <your-venv-name>
@@ -31,7 +31,7 @@ source <your-venv-name>/bin/activate
 
 
 ### Step 2: Download dependencies.
-Install the repository dependendies using the `requirements.txt` file:
+Install the repository dependencies using the `requirements.txt` file:
 
 ```bash
 # For Windows.
@@ -54,7 +54,7 @@ GOOGLE_API_KEY=your-key-here
 GROQ_API_KEY=your-key-here
 ```
 
-### Step 4: Run the `adapt.py` file.
+### Step 4: Run the adaptation process.
 Create you first Playbook with the `adapt.py` file:
 
 ```bash
@@ -95,19 +95,21 @@ opik configure
 
 When running any of the following files: `adapt.py`, `grade_article.py`, `grader_ui.py`; your traces will be logged to your Opik account, as configured during the Opik configuration.
 
+Custom Opik evaluation rules are available upon request. Please contact the developer using any form of communication, including the email provided at the end of this file.
+
 ## File functionality.
 
 - `adapt.py`:
-Main adaptation process. Uses the main ACE roles to create an AI updated ACE Notebook.
+Main Agentic Context Engineering (ACE) adaptation process. Uses the main ACE roles to create an AI updated ACE Notebook.
 
 - `grade_article.py`:
-This file grades a single CEFR B2 exam article using the latest Playbook adaptation.
+This file grades a single CEFR B2 English exam article using the latest Playbook adaptation.
 
 - `grader_ui.py`:
 Basic Streamlit application to grade student articles individually or in batches.
 
 - `parse_data.py`:
-Extracts the CEFR B2 English Article Writing Rubric and student article examples with their corresponding scores from their corresponding PDF files.
+Extracts the CEFR B2 English Article Writing Rubric and student article examples with their respective scores from their corresponding PDF files.
 
 - `upv_grader`:
 Configures the LLM's used by the `adapt.py` file, initializes the main ACE roles, and creates the initial Playbook seeds.
@@ -115,4 +117,4 @@ Configures the LLM's used by the `adapt.py` file, initializes the main ACE roles
 - `viz.py`:
 Graphic tool to visualize the evolution of the Playbook adaptations, including the number of delta operations (changes to the Playbook) performed in one epoch (iteration), and the number of mismatches (differences between AI score and human score per article example).
 
-Made By: Nicholas Clancy Soler.
+Made By: Nicholas Clancy Soler | naclasol@masters.upv.es
