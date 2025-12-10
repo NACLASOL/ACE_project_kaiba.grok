@@ -58,10 +58,6 @@ def validate_result(result: dict) -> bool:
         
         score_val = result["scores"][score_key]
         if not isinstance(score_val, (int, float)):
-            raise ValueError(f"Scores missing required key: {score_key}")
-        
-        score_val = result["scores"][score_key]
-        if not isinstance(score_val, (int, float)):
             raise ValueError(f"Score {score_key} must be numeric.")
         if not (1.0 <= score_val <= 5.0):
             raise ValueError(f"Score {score_key}={score_val} outside range [1.0, 5.0]")
@@ -91,7 +87,7 @@ def validate_article_input(title: str, text: str) -> list:
     if not text or len(text.strip()) == 0:
         errors.append("Article text cannot be empty.")
     elif len(text) < 50:
-        errors.append("Article too corto (minimum 50 characters).")
+        errors.append("Article too short (minimum 50 characters).")
     elif len(text) > 5000:
         errors.append("Article too long (maximum 5000 characters).")
 
@@ -172,7 +168,7 @@ def ui_batch_grade(df: pd.DataFrame) -> list:
 
     if errors:
         logger.warning(
-            f"Batch processing: {len(errors)} erros out of {len(df)} articles"
+            f"Batch processing: {len(errors)} errors out of {len(df)} articles"
         )
     
     return grades
