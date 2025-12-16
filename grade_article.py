@@ -1,41 +1,51 @@
 import json
 import os
 import re
+
 from dotenv import load_dotenv
-from parse_data import extract_rubric
+
 from datetime import datetime
 from ace import *
 from opik import *
-from opik.opik_context import get_current_span_data, update_current_trace, update_current_span
+from opik.opik_context import update_current_span
 from pathlib import Path
+
 from upv_grader import *
+from parse_data import extract_rubric
+from constants import (
+    RUBRIC_FILE,
+    TASK_PROMPT,
+    OPIK_PROJECT_NAME,
+    LOG_DIR,
+    ADAPTATION_SUMMARY_FILE,
+    LATEST_PLAYBOOK_FILE,
+    GRADES_LOG_FILE
+)
 
 load_dotenv()
 
 # === CONFIGURATION ===
-RUBRIC_FILE = "parse/internship.enhance_b2_article_writing_rubric_structured.pdf"
 PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME")
 
-LOG_DIR = Path("logs")
-LOG_DIR.mkdir(exist_ok=True)
+# Load adaptation summary (if exists).
+if ADAPTATION_SUMMARY_FILE.is_file():
+    summary = json.load(open(ADAPTATION_SUMMARY_FILE), "r", encoding="utf-8")
+else:
+    summary = {}
 
-summary = json.load(open(LOG_DIR / "adaptation_summary.json"))
-
-# Load evolved playbook (from last adaptation_summary.json)
-latest_playbook = Playbook.load_from_file("logs/latest_playbook.json")
+# Load playbook (from last adaptation_summary.json).
+if LATEST_PLAYBOOK_FILE.is_file():
+    latest_playbook = Playbook.load_from_file(str(LATEST_PLAYBOOK_FILE))
+else:
+    latest_playbook = None
 
 # Create playbook prompt.
-PLAYBOOK_PROMPT = "\n".join(str(latest_playbook.bullets())) if latest_playbook else "No evolved playbook found - using default" # Convert to string.
+PLAYBOOK_PROMPT = ("\n".join(str(latest_playbook.bullets())) if latest_playbook and latest_playbook.bullets() 
+                   else "No evolved playbook found - using default") # Convert to string.
 
 RUBRIC = extract_rubric(RUBRIC_FILE)
 
-TASK_PROMPT = """You have just seen the following advertisement in the university magazine:
-Share with us what you think about the importance of physically attending classes in-person for university students instead of online classes. We're looking for articles about the benefits of studying in a classroom with a teacher. The best article will be published in our university magazine and the winner will receive a €200 gift card.
-You have decided to contribute, Write an ARTICLE in which you:
-• explain why physically attending classes can improve learning.
-• mention why attending class at a university also provides the student with other resources and facilities.
-• suggest ways in which teachers can encourage students to go to class.
-Give your article a title. Write your ARTICLE in 180-220 words."""
+TASK_PROMPT = TASK_PROMPT
 
 
 def extract_scores_from_response(final_answer: str) -> dict:
@@ -272,7 +282,7 @@ PLAYBOOK STRATEGIES:
             "scores": scores,
             "log_type": "grade_record",
             "timestamp": datetime.now().isoformat(),
-            "log_path": str(LOG_DIR / "grades.log")
+            "log_path": str(GRADES_LOG_FILE)
         },
     )
     log_entry = {
@@ -284,9 +294,8 @@ PLAYBOOK STRATEGIES:
         "playbook_size": len(latest_playbook.bullets()) if latest_playbook else 0,
     }
 
-    log_path = LOG_DIR / "grades.log"
     try:
-        with open(log_path, "a") as f:
+        with open(GRADES_LOG_FILE, "a", encoding="utf-8") as f:
             json.dump(log_entry, f)
             f.write("\n")
     except IOError as e:
