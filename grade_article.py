@@ -29,7 +29,7 @@ PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME")
 
 # Load adaptation summary (if exists).
 if ADAPTATION_SUMMARY_FILE.is_file():
-    summary = json.load(open(ADAPTATION_SUMMARY_FILE), "r", encoding="utf-8")
+    summary = json.load(open(ADAPTATION_SUMMARY_FILE))
 else:
     summary = {}
 
