@@ -21,10 +21,10 @@ from constants import (
 OPIK_PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME")
 
 # Number of EPOCHS (adaptation iterations).
-EPOCHS = 1
+EPOCHS = 2
 
 mismatches_log = []
-deltas_log = {}
+deltas_log = []
 playbooks_log = []
 
 Path('logs').mkdir(exist_ok=True) # Ensure directory.
@@ -233,7 +233,7 @@ def adaptation_epoch(epoch: int, sample_set) -> dict:
             ]
 
             epoch_deltas_count += len(new_deltas)
-            deltas_log.update({
+            deltas_log.append({
                 'epoch': epoch,
                 'sample': sample_idx,
                 'deltas': new_deltas,

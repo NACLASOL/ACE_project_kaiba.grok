@@ -6,10 +6,10 @@ from pathlib import Path
 from collections import Counter
 from typing import List, Dict, Any
 
+from constants import EPOCHS_DIR, ADAPTATION_SUMMARY_FILE, LOG_DIR
+
 # === 1. CONFIGURATION ===
-LOG_DIR = Path("logs")
-SUMMARY_FILE = LOG_DIR / "adaptation_summary.json"
-EPOCH_FILES = sorted(LOG_DIR.glob("epoch-*.json")) # For epoch-00.json, epoch-01.json, ...
+EPOCH_FILES = sorted(EPOCHS_DIR.glob("epoch-*.json")) # For epoch-00.json, epoch-01.json, ...
 
 # Plot style.
 sns.set_style('whitegrid')
@@ -20,11 +20,11 @@ FIG_FMT = "png"      # "png" | "pdf" | "svg"
 
 # 2. === LOAD DATA ===
 def load_summary() -> Dict[str, Any]:
-    with open(SUMMARY_FILE, "r", encoding="utf-8") as f:
+    with open(ADAPTATION_SUMMARY_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
     
 def load_epoch(epoch: int) -> Dict[str, Any]:
-    file = LOG_DIR / f"epoch-{epoch:02d}.json"
+    file = EPOCHS_DIR / f"epoch-{epoch:02d}.json"
     if not file.exists():
         raise FileNotFoundError(file)
     with open(file, "r", encoding="utf-8") as f:
