@@ -1,3 +1,4 @@
+import os
 import re
 import json
 import time
@@ -9,14 +10,18 @@ from opik.opik_context import update_current_span
 from parse_data import train_samples, test_samples, one_sample
 from upv_grader import *
 
-# === CONFIGURATION ===
-PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME")
+from constants import (
+    OPIK_PROJECT_NAME,
+    LOG_DIR,
+    EPOCHS_DIR,
+    EPOCH_FAILURE_LOG,
+)
 
+# === CONFIGURATION ===
+OPIK_PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME")
+
+# Number of EPOCHS (adaptation iterations).
 EPOCHS = 1
-LOG_DIR = Path("logs")
-EPOCHS_DIR = LOG_DIR / "epochs"
-LOG_DIR.mkdir(exist_ok=True)
-EPOCHS_DIR.mkdir(exist_ok=True)
 
 mismatches_log = []
 deltas_log = {}
@@ -34,12 +39,11 @@ def log_failure(prompt_snippet: str, error_message: str) -> None:
         prompt_snipper: Chars of failed prompt.
         error message: Exception message.
     """
-    log_path = LOG_DIR / "epoch_failure.log"
-    with open('logs/epoch_failure.log', 'w') as f:
+    with open(EPOCH_FAILURE_LOG, 'a') as f:
         f.write(f"---\n{datetime.now()}\nError: {error_message}\n\n{prompt_snippet}\n---\n")
 
 @track(
-    project_name=os.getenv("OPIK_PROJECT_NAME"),
+    project_name=OPIK_PROJECT_NAME,
     metadata={
         "task": "adaptation_loop",
         "component": "score_extraction"
@@ -86,7 +90,7 @@ def extract_scores_from_response(final_answer: str) -> dict:
     return scores
 
 @track(
-        project_name=PROJECT_NAME,
+        project_name=OPIK_PROJECT_NAME,
         metadata={
             "task": "adaptation_loop",
             "component": "main_adaptation",
@@ -284,6 +288,8 @@ def adaptation_epoch(epoch: int, sample_set) -> dict:
     return epoch_result
     
 def main():
+    from constants import ADAPTATION_SUMMARY_FILE, LATEST_PLAYBOOK_FILE
+
     """
     Execute full adaptation loop across all epochs.
     """
@@ -304,8 +310,7 @@ def main():
             "total_deltas": len(deltas_log),
         }
     )
-    summary_path = LOG_DIR / "adaptation_summary.json"
-    with open(summary_path, 'w') as f:
+    with open(ADAPTATION_SUMMARY_FILE, 'w') as f:
         json.dump({
             'mismatches_log': mismatches_log,
             'deltas_log': deltas_log,
@@ -313,7 +318,7 @@ def main():
             'timestamp': datetime.now().isoformat(),
         }, f, indent=2)
 
-    playbook.save_to_file(str(LOG_DIR / "latest_playbook.json"))
+    playbook.save_to_file(str(LATEST_PLAYBOOK_FILE))
 
     print("✅ Adaptation Complete!")
     print(
