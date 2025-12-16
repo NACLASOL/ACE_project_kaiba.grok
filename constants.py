@@ -40,7 +40,10 @@ PARSE_DEBUG_LOG = LOG_DIR / "parse_debug.log"
 # Grade logs.
 GRADES_LOG_FILE = LOG_DIR / "grades.log"
 
-# Epoch failure from ACE roles.
+# Epoch failure log for adaptatio.
+EPOCH_FAILURE_LOG = LOG_DIR / "epoch_failure.log"
+
+# JSON failures from ACE roles.
 JSON_FAILURE_LOG = LOG_DIR / "json_failures.log"
 
 # === TASK PROMPT ===
