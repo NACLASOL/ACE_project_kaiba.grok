@@ -5,13 +5,13 @@ from pathlib import Path
 BASE_DIR = Path(".").resolve()
 
 # Directory where the parsed PDFs are stored (rubric, examples)
-PARSE_DIR = Path(BASE_DIR / "parse").resolve()
+PARSE_DIR = Path(os.getenv("ACE_PARSE_DIR", BASE_DIR / "parse")).resolve()
 
 # Logs root.
-LOG_DIR = Path(BASE_DIR / "logs").resolve()
+LOG_DIR = Path(os.getenv("ACE_LOG_DIR", BASE_DIR / "logs")).resolve()
 
 # Epochs dir under logs (used by adapt.py).
-EPOCHS_DIR = Path(LOG_DIR / "epochs").resolve()
+EPOCHS_DIR = Path(os.getenv("ACE_EPOCHS_DIR", LOG_DIR / "epochs")).resolve()
 
 # Ensure the core directories exist.
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -20,12 +20,12 @@ EPOCHS_DIR.mkdir(parents=True, exist_ok=True)
 
 # === FILES ===
 RUBRIC_FILE = Path(
-    PARSE_DIR / "internship.enhance_b2_article_writing_rubric_structured.pdf"
+    os.getenv("ACE_RUBRIC_FILE", PARSE_DIR / "internship.enhance_b2_article_writing_rubric_structured.pdf")
 ).resolve()
 
 # Student examples PDF.
 EXAMPLES_FILE = Path(
-    PARSE_DIR / "testing_batch_30_examples.pdf"
+    os.getenv("ACE_EXAMPLES_FILE", PARSE_DIR / "testing_batch_30_examples.pdf")
 ).resolve()
 
 # JSON summarising adaptation loop.
