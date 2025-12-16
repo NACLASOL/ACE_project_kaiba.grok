@@ -11,55 +11,12 @@ from parse_data import rubric_bullets
 
 load_dotenv()
 
-# THIS FUNCTION DOES NOT WORK.
-class StrippingLiteLLMClient(LiteLLMClient):
-    '''Custom LiteLLMClient that strips Markdown fences from LLM response before returning'''
-    def query(self, prompt, **kwargs):
-        response = super().query(prompt, **kwargs)
-
-        # ACE expects Response with .text; base does this.
-        if not hasattr(response, "text"):
-            # LiteLLM sometimes returns a dict with ".choices"
-            if isinstance(response, dict) and "choices" in response:
-                text = response["choices"][0]["message"]["content"]
-            else:
-                text = str(response)
-            # Fake Response.
-            response = type('FakeResponse', (), {'text':text})()
-        
-        # Prints original .text for debug.
-        print("Original text[:40]", response.text[:50])
-
-        # --- STRIP FENCES ----
-        raw = response.text.strip()
-
-        # Removes the ```json.
-        raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.IGNORECASE)
-        raw = re.sub(r"\s*```$", "", raw, flags=re.IGNORECASE)
-
-        # Removes occasional single-backtick fences.
-        raw = re.sub(r"^`{1,3}\s*", "", raw)
-        raw = re.sub(r"\s*`{1,3}$", "", raw)
-
-        raw = raw.strip()
-
-        # Fallback if empty.
-        if not raw:
-            raw = '{}'
-        
-        response.text = raw
-
-        # Print stripped .text for debug.
-        print("Stripped text:", response.text)
-
-        return response
 
 MODEL_GROQ = 'groq/meta-llama/llama-4-scout-17b-16e-instruct'
-MODEL_2 = 'groq/moonshotai/kimi-k2-instruct'
-MODEL_3 = 'groq/meta-llama/llama-guard-4-12b'
-MODEL_GOOGLE = 'gemini/gemini-2.0-flash'
+MODEL_GROQ_2 = 'groq/moonshotai/kimi-k2-instruct'
+MODEL_GOOGLE = 'gemini/gemini-2.5-flash'
 
-client = StrippingLiteLLMClient(model=MODEL_GROQ, api_key=os.getenv("GROQ_API_KEY"), temperature=0.1)
+client = LiteLLMClient(model=MODEL_GOOGLE, api_key=os.getenv("GOOGLE_API_KEY"), temperature=0.1, max_tokens=8192)
 
 # Optional custom curator prompt; used in case default curator prompt fails.
 custom_curator_prompt = '''
