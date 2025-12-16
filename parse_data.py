@@ -7,21 +7,15 @@ from pathlib import Path
 from typing import List, Dict
 from sklearn.model_selection import train_test_split
 
-# === CONFIGURATION ===
-RUBRIC_FILE = 'parse/internship.enhance_b2_article_writing_rubric_structured.pdf'
-EXAMPLES_FILE = 'parse/internship.b2_writing_examples_scores.pdf'
-TASK_PROMPT = """You have just seen the following advertisement in the university magazine:
-Share with us what you think about the importance of physically attending classes in-person for university students instead of online classes. We're looking for articles about the benefits of studying in a classroom with a teacher. The best article will be published in our university magazine and the winner will receive a €200 gift card.
-You have decided to contribute, Write an ARTICLE in which you:
-• explain why physically attending classes can improve learning.
-• mention why attending class at a university also provides the student with other
-resources and facilities.
-• suggest ways in which teachers can encourage students to go to class.
-Give your article a title. Write your ARTICLE in 180-220 words."""
+from constants import RUBRIC_FILE, EXAMPLES_FILE, TASK_PROMPT, PARSE_DEBUG_LOG, LOG_DIR
 
-DEBUG_LOG = 'logs/parse_debug.log'
-Path('logs').mkdir(exist_ok=True) # Create dir.
-Path('logs/samples').mkdir(exist_ok=True)
+# === CONFIGURATION ===
+RUBRIC_FILE = RUBRIC_FILE
+EXAMPLES_FILE = EXAMPLES_FILE
+TASK_PROMPT = TASK_PROMPT
+
+DEBUG_LOG = PARSE_DEBUG_LOG
+Path(LOG_DIR / "samples").mkdir(parents=True, exist_ok=True)
 open(DEBUG_LOG, 'w').close() # Cleares the log.
 
 def log_debug(message: str):
