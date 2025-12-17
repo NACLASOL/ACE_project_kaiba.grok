@@ -1,5 +1,8 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # === BASE DIRECTORIES ===
 BASE_DIR = Path(".").resolve()
@@ -25,7 +28,7 @@ RUBRIC_FILE = Path(
 
 # Student examples PDF.
 EXAMPLES_FILE = Path(
-    os.getenv("ACE_EXAMPLES_FILE", PARSE_DIR / "testing_batch_30_examples.pdf")
+    os.getenv('ACE_EXAMPLES_FILE'), PARSE_DIR / "internship.b2_writing_examples_scores.pdf"
 ).resolve()
 
 # JSON summarising adaptation loop.
