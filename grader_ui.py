@@ -357,24 +357,24 @@ if mode == "Single Article":
                                 col1, col2, col3, col4, col5 = st.columns(5)
 
                                 with col1:
-                                    st.metric("Avg TA", f"{results_df['TA'].mean():.2df}")
+                                    st.metric("Avg TA", f"{results_df['TA'].mean():.2f}")
 
                                 with col2:
-                                    st.metric("Avg CC", f"{results_df['CC'].mean():.2df}")
+                                    st.metric("Avg CC", f"{results_df['CC'].mean():.2f}")
 
                                 with col3:
-                                    st.metric("Avg GR", f"{results_df['GR'].mean():.2df}")
+                                    st.metric("Avg GR", f"{results_df['GR'].mean():.2f}")
                                 
                                 with col4:
-                                    st.metric("Avg LR", f"{results_df['LR'].mean():.2df}")
+                                    st.metric("Avg LR", f"{results_df['LR'].mean():.2f}")
 
                                 with col4:
-                                    st.metric("Avg OWP", f"{results_df['OWP'].mean():.2df}")
+                                    st.metric("Avg OWP", f"{results_df['OWP'].mean():.2f}")
                                 
                                 # Download all results.
                                 st.download_button(
                                     label = "📥 Download All Grades as JSON",
-                                    data=json.dumps(grades, indend=2),
+                                    data=json.dumps(grades, indent=2),
                                     file_name=f"batch_grades_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                                     mime="application/json"
                                 )

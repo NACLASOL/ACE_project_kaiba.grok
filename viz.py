@@ -80,7 +80,7 @@ def plot_deltas(summary: Dict[str, Any]):
             elif "MODIFY" in op:
                 ops["MODIFY"] += 1
             elif "DELETE" in op:
-                ops["DELETE"]
+                ops["DELETE"] +=1
         delta_per_epoch.append({"epoch": epoch, **ops})
 
     if not delta_per_epoch:
