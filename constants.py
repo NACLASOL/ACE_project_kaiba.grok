@@ -28,7 +28,7 @@ RUBRIC_FILE = Path(
 
 # Student examples PDF.
 EXAMPLES_FILE = Path(
-    os.getenv('ACE_EXAMPLES_FILE'), PARSE_DIR / "internship.b2_writing_examples_scores.pdf"
+    os.getenv('ACE_EXAMPLES_FILE', PARSE_DIR / "internship.b2_writing_examples_scores.pdf")
 ).resolve()
 
 # JSON summarising adaptation loop.

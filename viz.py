@@ -105,7 +105,7 @@ def plot_deltas(summary: Dict[str, Any]):
     plt.tight_layout()
     if SAVE_FIGS:
         plt.savefig(LOG_DIR / f"deltas.{FIG_FMT}", dpi=300)
-    plt.show
+    plt.show()
 
 def plot_playbook_evolution(epochs_data: List[Dict[str, Any]]):
     """Simple line showing the playbook size growth"""

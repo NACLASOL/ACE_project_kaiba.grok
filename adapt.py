@@ -18,16 +18,13 @@ from constants import (
 )
 
 # === CONFIGURATION ===
-OPIK_PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME")
 
 # Number of EPOCHS (adaptation iterations).
-EPOCHS = 2
+EPOCHS = 1
 
 mismatches_log = []
 deltas_log = []
 playbooks_log = []
-
-Path('logs').mkdir(exist_ok=True) # Ensure directory.
 
 Path('logs/epochs').mkdir(exist_ok=True) # Create 'epochs' directory.
 
@@ -206,7 +203,7 @@ def adaptation_epoch(epoch: int, sample_set) -> dict:
             )
         except Exception as e:
             log_failure(feedback, f"Reflect failed: {str(e)}")
-            reflection - "" # Skip the reflection.
+            reflection = "" # Skip the reflection.
 
         # === CURATE & APPLY DELTA ===
         update_current_span(
