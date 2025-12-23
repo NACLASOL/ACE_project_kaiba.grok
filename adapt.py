@@ -48,16 +48,24 @@ def log_failure(prompt_snippet: str, error_message: str) -> None:
 )
 def extract_scores_from_response(final_answer: str) -> dict:
     """
-    Extract CEFR scores from LLM response using corrected felxible regex
+    Extract CEFR B2 scores from LLM response using flexible regex.
 
     Args:
-        final_answer: LLM response contianing scores.
-
+        final_answer: LLM response containing score in format:
+                      "RESULT,TA:3.0,CC:4.0,GR:3.0,LR:4.0,OWP:4.0".
+    
     Returns:
-        dict: {TA, CC, GR, LR, OWP} with float values [1.0-5.0]
+        dict with keys TA, CC, GR, LR, OWP and float values [1.0-5.0].
 
     Raises:
         ValueError: If regex doesn't match or values out of range.
+    """
+
+    """
+    attributes={
+            "valid_range": "[1.0, 5.0]",
+            "all_scores_valid": all(1.0 <= v <= 5.0 for v in scores.values()),
+        }
     """
 
     pattern = r'RESULTS\s*,?\s*TA\s*:?\s*([\d.]+)\s*,\s*CC\s*:?\s*([\d.]+)\s*,\s*GR\s*:?\s*([\d.]+)\s*,\s*LR\s*:?\s*([\d.]+)\s*,\s*OWP\s*:?\s*([\d.]+)'
@@ -65,25 +73,35 @@ def extract_scores_from_response(final_answer: str) -> dict:
     match = re.search(pattern, final_answer, re.IGNORECASE)
     if not match:
         raise ValueError(
-            f"Score extraction failed. Expected format: 'RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0'\n"
-            f"Got: {final_answer[:300]}"
+            f"Score extraction failed. Expect format: "
+            f"'RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0'\n"
+            f"Got: {final_answer[:200]}"
         )
-    
-    scores = {
-        'TA': float(match.group(1)),
-        'CC': float(match.group(2)),
-        'GR': float(match.group(3)),
-        'LR': float(match.group(4)),
-        'OWP': float(match.group(5)),
-    }
 
-    # Validate all scores in CEFR range.
+    scores = {
+        "TA": float(match.group(1)),
+        "CC": float(match.group(2)),
+        "GR": float(match.group(3)),
+        "LR": float(match.group(4)),
+        "OWP": float(match.group(5)),
+    }
+    """
+    opik_context.update_current_span(
+        metadata={
+            "valid_range": "[1.0, 5.0]",
+            "all_scores_valid": all(1.0 <= v <= 5.0 for v in scores.values()),
+        }
+    )
+    """
+    
+    # Validate all scores with CEFR range [1.0, 5.0].
     for score_name, score_value in scores.items():
         if not (1.0 <= score_value <= 5.0):
             raise ValueError(
-                f"Score {score_name}={score_value} outside valid range [1.0, 5.0]"
+                f"Invalid score {score_name} = {score_value}"
+                f"Must be in range [1.0, 5.0]"
             )
-        
+    
     return scores
 
 @track(
