@@ -57,7 +57,7 @@ def plot_mismatch_and_playbook(epochs_data: List[Dict[str, Any]]):
 
     ax2 = ax1.twinx()
     color = sns.color_palette("husl", 2)[1]
-    ax2.set_ylabel("Playboo Size", color=color)
+    ax2.set_ylabel("Playbook Size", color=color)
     ax2.bar(epochs, playbook_sizes, alpha=0.6, color=color, label="Playbook Size")
     ax2.tick_params(axis="y", labelcolor=color)
 
@@ -98,6 +98,7 @@ def plot_deltas(summary: Dict[str, Any]):
         color={"ADD": "#60cdaa", "MODIFY": "#fc8d62", "DELETE": "#8da0cb"},
         width=0.7,
     )
+    
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Number of Delta Operations")
     ax.set_title("Playbook Delta Operations per Epoch")
@@ -134,7 +135,7 @@ def main():
         print("Warning: No epoch-*.json files found - nothing to visualise")
         return
     
-    print(f"Found {len(epoch_data)} epoch(s) and {len(summary.get('deltas_log', []))} delta entries")
+    print(f"Found {len(epoch_data)} epoch(s) and {summary.get('total_deltas', [])} delta entries")
 
     plot_mismatch_and_playbook(epoch_data)
     plot_playbook_evolution(epoch_data)

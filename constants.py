@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 # === BASE DIRECTORIES ===
 BASE_DIR = Path(".").resolve()
 
@@ -28,7 +29,7 @@ RUBRIC_FILE = Path(
 
 # Student examples PDF.
 EXAMPLES_FILE = Path(
-    os.getenv('ACE_EXAMPLES_FILE', PARSE_DIR / "internship.b2_writing_examples_scores.pdf")
+    os.getenv("ACE_EXAMPLES_FILE", PARSE_DIR / "internship.b2_writing_examples_scores.pdf")
 ).resolve()
 
 # JSON summarising adaptation loop.
@@ -61,5 +62,14 @@ resources and facilities.
 Give your article a title. Write your ARTICLE in 180-220 words.
 """
 
+# === ADAPTATION CONFIGURATION ===
+EPOCHS = 10
+DEBUG_ADAPT = False
+
 # === OPIK CONFIGURATION ===
 OPIK_PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME")
+
+# === CHECKPOINT CONFIGURATION ===
+CHECKPOINT_ENABLED = True
+CHECKPOINT_PATH = LOG_DIR / "adaptation_checkpoint.json"
+

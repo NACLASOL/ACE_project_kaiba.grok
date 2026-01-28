@@ -1,6 +1,8 @@
-import json
 import os
 import re
+import json
+import jsonlines
+import time
 
 from dotenv import load_dotenv
 
@@ -46,9 +48,6 @@ PLAYBOOK_PROMPT = ("\n".join(str(latest_playbook.bullets())) if latest_playbook 
 
 RUBRIC = extract_rubric(RUBRIC_FILE)
 
-TASK_PROMPT = TASK_PROMPT
-
-
 @track(project_name=PROJECT_NAME)
 def grade_article(article_title: str, article_text: str) -> dict:
     """
@@ -68,18 +67,15 @@ def grade_article(article_title: str, article_text: str) -> dict:
         ValueError: If input validation fails or score extraction fails.
     """
 
+    grader = UPVGrader(task_prompt=TASK_PROMPT)
+
+    # Get ACE components
+    generator = grader.get_generator()
+
+    # Start time for processing time
+    start_time = time.time()
+
     # === VALIDATION ===
-    
-    """
-    attributes={
-            "article_title": article_title,
-            "article_length": len(article_text),
-            "title_length": len(article_title),
-            "cefr_level": "B2",
-            "task": "article_grading",
-            "timestamp": datetime.now().isoformat()
-        }
-    """
 
     update_current_span(
         name="validation_span",
@@ -108,18 +104,11 @@ def grade_article(article_title: str, article_text: str) -> dict:
     # Character encoding validation (UTF-8).
     try:
         article_text.encode('utf-8')
-        article_text.encode('utf-8')
+        article_title.encode('utf-8')
     except UnicodeDecodeError as e:
         raise ValueError(f"Invalid character encoding: {str(e)}")
     
     # === PROMPT CONSTRUCTION ===
-    """
-    attributes={
-            "has_task_prompt": True,
-            "has_rubric": RUBRIC is not None,
-            "playbook_size": len(latest_playbook.bullets()) if latest_playbook else 0, 
-        }
-    """
 
     update_current_span(
         name="prompt_construction",
@@ -156,20 +145,10 @@ PLAYBOOK STRATEGIES:
     
     # === LLM GENERATION ===
 
-    """
-    attributes={
-            "model": client.model,
-            "temperature": 0.1,
-            "playbook_size": len(latest_playbook.bullets()) if latest_playbook else 0,
-            "prompt_length": len(prompt),
-            "article_length": len(article_text),
-        }
-    """
-
     update_current_span(
         name="llm_generation",
         metadata={
-            "model": client.model,
+            "model": grader.client.model,
             "temperature": 0.1,
             "playbook_size": len(latest_playbook.bullets()) if latest_playbook else 0,
             "prompt_length": len(prompt.split()),
@@ -188,20 +167,12 @@ PLAYBOOK STRATEGIES:
 
     # === SCORE EXTRACTION ===
 
-    """
-    attributes={
-        "output_format": "CEFR_5_POINT_SCALE",
-        "expected_scores": 5, # TA, CC, GR, LR, OWP.
-        "response_length": len(response.final_answer) if response.final_answer else 0,
-    }
-    """
-
     update_current_span(
         name="score_extraction",
         metadata={
             "output_format": "CEFR_5_POINT_SCALE",
             "expected_scores": 5, # TA, CC, GR, LR, OWP.
-            "response_length": len(response.final_answer.split()) if response.final_answer else 0,
+            "reasoning_length": len(response.reasoning.split()) if response.reasoning else 0,
         },
     )
     try:
@@ -211,13 +182,6 @@ PLAYBOOK STRATEGIES:
         raise ValueError(f"Score extraction failed: {str(e)}")
             
     # === AUDIT LOGGING ===
-    """
-    attributes={
-            "log_type": "grade_record",
-            "timestamp": datetime.now().isoformat(),
-            "log_path": str(LOG_DIR / "grades.log")
-        }
-    """
     
     update_current_span(
         name="audit_logging",
@@ -243,19 +207,16 @@ PLAYBOOK STRATEGIES:
             f.write("\n")
     except IOError as e:
         raise ValueError(f"Failed to write grade log: {str(e)}")
+    
+    # === MEASURE PROCESSING TIME ===
+    end_time = time.time()
+    total_duration = end_time - start_time
 
-    # === ANNOTATE MAIN TRACE WITH METADATA ===
-    """return {
-            "article_title": article_title,
-            "article_length": len(article_text),
-            "scores": scores,
-            "average_score": sum(scores.values()) / len(scores),
-            "cefr_level": "B2",
-            "grading_model": client.model,
-            "playbook_version": "latest",
-            "timestamp": datetime.now().isoformat(),
-        }
-    """
+    # === AUTOMATED BASELINE RESULTS LOGGING FOR TESTING PHASE ===
+    baseline_results_json = {"id": None, "ai_results": scores, "ground_truth": {"TA": None, "CC": None, "GR": None, "LR": None, "OWP": None}, "reasoning_length": len(response.reasoning.split()) if response.reasoning else 0, "processing_time": round(total_duration, 2)}
+    
+    with jsonlines.open('testing_files/baseline_results.jsonl', 'a') as writer:
+        writer.write(baseline_results_json)
 
     # === RETURN RESULT ===
     return {
@@ -266,8 +227,7 @@ PLAYBOOK STRATEGIES:
             "playbook_size": len(latest_playbook.bullets()) if latest_playbook else 0,
             "cefr_level": "B2",
             "timestamp": datetime.now().isoformat(),
-            "model": client.model
-        
+            "model": grader.client.model,
         }
     }
         
@@ -288,7 +248,7 @@ demonstrations, and real-world case studies makes classes more engaging. Additio
 attendance with participation grades motivate students to prioritize physical presence.
 In conclusion, while online classes offer convenience, the comprehensive benefits of in-person attendance—from enhanced focus to
 access to university facilities—make it the superior choice for serious learners committed to academic excellence.
-    """
+"""
     
-    result = grade_article(title, text)
+    result = grade_article(article_title=title, article_text=text)
     print(json.dumps(result, indent=2))

@@ -368,7 +368,7 @@ if mode == "Single Article":
                                 with col4:
                                     st.metric("Avg LR", f"{results_df['LR'].mean():.2f}")
 
-                                with col4:
+                                with col5:
                                     st.metric("Avg OWP", f"{results_df['OWP'].mean():.2f}")
                                 
                                 # Download all results.

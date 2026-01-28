@@ -7,12 +7,7 @@ from pathlib import Path
 from typing import List, Dict
 from sklearn.model_selection import train_test_split
 
-from constants import RUBRIC_FILE, EXAMPLES_FILE, TASK_PROMPT, PARSE_DEBUG_LOG, LOG_DIR
-
-# === CONFIGURATION ===
-RUBRIC_FILE = RUBRIC_FILE
-EXAMPLES_FILE = EXAMPLES_FILE
-TASK_PROMPT = TASK_PROMPT
+from constants import RUBRIC_FILE, EXAMPLES_FILE, TASK_PROMPT, PARSE_DEBUG_LOG, LOG_DIR, LATEST_PLAYBOOK_FILE
 
 DEBUG_LOG = PARSE_DEBUG_LOG
 Path(LOG_DIR / "samples").mkdir(parents=True, exist_ok=True)
@@ -22,118 +17,8 @@ def log_debug(message: str):
     with open(DEBUG_LOG, 'a', encoding='utf-8') as f:
         f.write(message + '\n')
 
-def _fix_concatenated_text(text):
-    """
-    Fixes text where spaces between words have been removed due to PDF extraction issues.
-    
-    Uses Dynamic Programming to find the optimal word boundaries by testing against
-    a comprehensive English vocabulary.
-    
-    Example: "Thetextaddresses" → "The text addresses"
-    """
-    
-    vocabulary = {
-        'the', 'a', 'an', 'is', 'are', 'be', 'was', 'were', 'been', 'being',
-        'to', 'of', 'in', 'on', 'at', 'by', 'for', 'from', 'with', 'about', 'into',
-        'or', 'and', 'but', 'not', 'no', 'nor',
-        'have', 'has', 'had', 'do', 'does', 'did', 'should', 'would', 'could', 'can',
-        'may', 'might', 'must', 'will', 'shall', 'having', 'doing',
-        'it', 'its', 'this', 'that', 'these', 'those', 'which', 'who', 'whom',
-        'he', 'she', 'they', 'them', 'his', 'her', 'your', 'our', 'my',
-        'text', 'addresses', 'address', 'content', 'points', 'relevant', 'information',
-        'though', 'some', 'could', 'more', 'most', 'fully', 'developed', 'generally',
-        'follows', 'follow', 'required', 'require', 'article', 'format', 'conventions',
-        'register', 'style', 'appropriate', 'task', 'occasional', 'inconsistencies',
-        'inconsistency', 'well', 'organized', 'organize', 'clear', 'clearly',
-        'achieving', 'achieve', 'target', 'reader', 'readers', 'informed', 'inform',
-        'overall', 'when', 'where', 'what', 'how', 'also', 'other', 'such', 'only',
-        'even', 'just', 'still', 'very', 'lapses', 'lapse', 'length', 'deviation',
-        'minor', 'mostly', 'shortcomings', 'shortcoming', 'writing', 'write',
-        'coherent', 'coherence', 'purpose', 'engaged', 'meeting', 'meet', 'range',
-        'attempt', 'attempts', 'complex', 'organizational', 'pattern', 'patterns',
-        'using', 'use', 'subordinate', 'clause', 'clauses', 'thematic', 'progression',
-        'perfectly', 'execute', 'executed', 'paragraph', 'paragraphs', 'idea', 'ideas',
-        'logical', 'minimal', 'effort', 'devices', 'device', 'linking', 'words',
-        'signal', 'signals', 'sequenced', 'sequence', 'referencing', 'reference',
-        'substitution', 'repetition', 'all', 'main', 'demonstrates', 'demonstrate',
-        'good', 'appropriate', 'feel', 'feels', 'disconnect', 'disconnected',
-        'understand', 'understanding', 'structures', 'structure', 'accuracy', 'error',
-        'errors', 'spelling', 'punctuation', 'faultless', 'slips', 'slip', 'distracts',
-        'distract', 'minimal', 'systematic', 'command', 'grammar', 'relative',
-        'passive', 'voice', 'occasional', 'impede', 'reasonable', 'control',
-        'mixed', 'success', 'frequent', 'word', 'order', 'tense', 'agreement',
-        'meaning', 'remains', 'mother', 'tongue', 'influence', 'isolated',
-        'fragment', 'fragments', 'limited', 'persistent', 'prevent', 'comprehension',
-        'almost', 'absent', 'inaccurate', 'basic', 'difficult', 'vocabulary',
-        'convey', 'near', 'constant', 'severe', 'choice', 'collocation',
-        'collocations', 'idiomatic', 'language', 'seriously', 'effectively',
-        'relationships', 'addition', 'contrast', 'cause', 'effect', 'paragraphing',
-        'central', 'flow', 'smoothly', 'sentences', 'pronouns', 'demonstratives',
-        'avoid', 'introduction', 'conclusion', 'answers', 'communicative', 'fluently',
-        'impression', 'consistently', 'maintained', 'balance', 'seamlessly',
-        'distracting', 'detract', 'impact', 'writer', 'engages', 'slightly',
-        'lack', 'flair', 'confuse', 'recognize', 'consistency', 'informal',
-        'formality', 'hinder', 'abrupt', 'uneven', 'noticeable', 'argument',
-        'partially', 'fulfills', 'unclear', 'underdeveloped', 'confusion',
-        'missing', 'title', 'poorly', 'defined', 'chaotic', 'scattered',
-        'constant', 'severe', 'rendering', 'largely', 'incomprehensible',
-        'there', 'their', 'were', 'been', 'are', 'being', 'having',
-    }
-    
-    if text.count(' ') > max(2, len(text) // 15):
-        return text
-    
-    n = len(text)
-    text_lower = text.lower()
-    
-    dp = [(float('inf'), -1)] * (n + 1)
-    dp[0] = (0, 0)
-    
-    for i in range(n):
-        if dp[i][0] == float('inf'):
-            continue
-        
-        current_cost = dp[i][0]
-        
-        for j in range(i + 1, min(i + 21, n + 1)):
-            substring = text_lower[i:j]
-            
-            if substring in vocabulary:
-                word_cost = 0  # Known word = free
-            elif len(substring) == 1 and substring.isalpha():
-                word_cost = 0.5  # Single letter = minimal cost
-            elif substring[-1] in '.,;:!?' or all(c.isdigit() or not c.isalpha() for c in substring):
-                word_cost = 0  # Punctuation/numbers = free
-            else:
-                word_cost = 1  # Unknown word = cost
-            
-            total_cost = current_cost + word_cost
-            
-            if total_cost < dp[j][0]:
-                dp[j] = (total_cost, i)
-    
-    if dp[n][0] == float('inf'):
-        return text
-    
-    words = []
-    pos = n
-    while pos > 0:
-        prev_pos = dp[pos][1]
-        word = text[prev_pos:pos]
-        words.append(word)
-        pos = prev_pos
-    
-    words.reverse()
-    
-    result = ' '.join(words)
-    result = re.sub(r'\s+', ' ', result)  # Normalize spaces
-    result = re.sub(r'\s+([.,;:!?\)])', r'\1', result)  # No space before punctuation
-    result = re.sub(r'([(])\s+', r'\1', result)  # No space after opening paren
-    result = re.sub(r'\s+,', ',', result)  # No space before comma
-    
-    return result.strip()
 
-# === CORRECTED RUBRIC EXTRACT (Returns formatted bullet list) ===
+# === RUBRIC EXTRACT ===
 def extract_rubric(pdf_path: str) -> str:
     """
     Extracts the full rubric from the NEW structured rubric PDF format.
@@ -146,7 +31,7 @@ def extract_rubric(pdf_path: str) -> str:
     - • Bullet points describing level 4
     - etc.
     
-    Returns a clean formatted string with category headers and level descriptions.
+    Returns a formatted string with category headers and level descriptions.
     """
     rubric_lines = []
     
@@ -396,17 +281,13 @@ print("Parsing student examples...")
 samples = extract_examples(EXAMPLES_FILE, rubric_bullets)
 
 # === MAIN EXECUTION ===
-if __name__ == "__main__":
+"""if __name__ == "__main__":
 
     # Save the file.
     output_file = 'logs/samples/upv_samples.json'
     json.dump(samples, open(output_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
     print(f"✅ Saved {len(samples)} samples to {output_file}.")
-    print(f"Debug log saved to {DEBUG_LOG} for inspection.")
+    print(f"Debug log saved to {DEBUG_LOG} for inspection.")"""
 
-
-train_samples, test_samples = train_test_split(samples, test_size=0.2, random_state=42)
 one_sample = [samples[0]]
-json.dump(train_samples, open('logs/samples/train_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
-json.dump(test_samples, open('logs/samples/test_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
-json.dump(one_sample, open('logs/samples/one_sample.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+json.dump(samples, open('logs/samples/train_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
