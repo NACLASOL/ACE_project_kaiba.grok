@@ -126,7 +126,7 @@ def plot_playbook_evolution(epochs_data: List[Dict[str, Any]]):
 # 4. === MAIN EXECUTION ===
 def main():
     if not LOG_DIR.exists():
-        raise FileExistsError(f"Log directory {LOG_DIR} not found - run adapt.py first")
+        raise FileNotFoundError(f"Log directory {LOG_DIR} not found - run adapt.py first")
 
     summary = load_summary()
     epoch_data = gather_all_epochs()

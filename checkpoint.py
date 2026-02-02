@@ -2,6 +2,7 @@ import json
 import signal
 import sys
 import platform
+import os
 
 from pathlib import Path
 from datetime import datetime
@@ -9,91 +10,145 @@ from typing import Dict, Optional, Any
 
 from constants import EPOCHS_DIR, LOG_DIR
 
+
 class AdaptationCheckpoint:
     """Manages checkpoint for adaptation loop with resume capability."""
 
-    def __init__(self, checkpoint_path: Optional[str] = None):
-        """
-        Initialize checkpoint manager.
-
-        Args:
-            checkpoint_path: Path to checkpoint file. Defaults to LOG_DIR/adaptation_checkpoint.json
-        """
-        if checkpoint_path is None:
-            checkpoint_path = Path(LOG_DIR) / "adaptation_checkpoint.json"
-        else:
-            checkpoint_path = Path(checkpoint_path)
-        
-        self.checkpoint_path = checkpoint_path
-        self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # State variables.
-        self.data = None
+    def __init__(self, checkpoint_path: str = "logs/adaptation_checkpoint.json"):
+        self.checkpoint_path = Path(checkpoint_path)
+        self.data: Optional[Dict] = None
         self.interrupted = False
+        self._save_in_progress = False
+        self._signal_count = 0 # Track multiple interrupts
 
-        # Register signal handlers for graceful shutdown.
-        signal.signal(signal.SIGINT, self._handle_interrupt)
-        if platform.system() != 'Windows':
+        # Register signal handlers (skip on windows)
+        if platform.system() != "Windows":
+            signal.signal(signal.SIGINT, self._handle_interrupt)
             signal.signal(signal.SIGTERM, self._handle_interrupt)
+            print("✅ Signal handlers registered (Ctrl+C will save progress)")
+
 
     def _handle_interrupt(self, signum, frame):
-        """Handle Ctrl+C or termination signals gracefully."""
-        print("\n" + "="*70)
-        print("⚠️ INTERRUPT SIGNAL RECEIVED")
-        print("="*70)
-        print("Saving current state before shutdown...")
+        """
+        Handle interrupt signals WITHOUT calling sys.exit().
 
+        Strategy:
+        1. First interrupt: Save checkpoint, raise KeyboardInterrupt
+        2. Second interrupt: Force immediate exit (user impatience)
+        """
+        self._signal_count += 1
+
+        # User presed Ctrl+C twice -> force exit
+        if self._signal_count > 1:
+            print("\n⚠️ SECOND INTERRUPT - Forcing immediate exit")
+            print("⚠️ Progress may be lost!")
+            sys.exit(1) # Only on second interrupt.
+
+        print("\n" + "="*70)
+        print("⚠️ INTERRUPT SIGNAL RECIEVED (Ctrl+C)")
+        print("="*70)
+
+        # Prevent re-entrance if save is in progress
+        if self._save_in_progress:
+            print("⚠️ Checkpoint save in progress - please wait...")
+            print("    (Press Ctrl+C again to force exit)")
+            return # Let save complete
+        
+        print("💾 Saving current progress...")
         self.interrupted = True
 
-        # Mark checkpoint as interrupted.
         if self.data:
             self.data['interrupted'] = True
             self.data['interrupted_at'] = datetime.now().isoformat()
-            self.save()
+            self.data['interrupted_at_epoch'] = self.data.get('last_completed_epoch', -1)
 
-            print(f"✅ Progress saved to: {self.checkpoint_path}")
-            print(f"📊 Completed epochs: {self.data.get('last_completed_epoch', -1) + 1}")
-            print(f"📈 Total deltas applied: {self.data.get('total_deltas_applied', 0)}")
-            print("\n💡 To resume: Run adapt.py again (will auto-detect checkpoint)")
+            try:
+                self.save()
+                print(f"✅ Progress saved to: {self.checkpoint_path}")
+                print(f"📊 Completed epochs: {self.data['last_completed_epoch'] + 1}")
+                print(f"📈 Total deltas: {self.data.get('total_deltas_applied', 0)}")
+                print(f"⏱️ Interrupted at: {self.data['interrupted_at']}")
+            except Exception as e:
+                print(f"❌ Checkpoint save failed: {type(e).__name__}: {str(e)}")
+                print(f"⚠️ Progress at epoch {self.data.get('last_completed_epoch' -1)} may be lost")
+        
+        else:
+            print("⚠️ No checkpoint data to save (adaptation hasn't started yet)")
+        
+        print("💡 To resume: Run adapt.py again")
+        print("     Checkpoint will be auto-detected and resumed")
         print("="*70)
-        sys.exit(0)
 
-    def exists(self) -> bool:
-        """Check if a checkpoint file exists."""
-        return self.checkpoint_path.exists()
+        # ✅ CORRECT: Raise KeyboardInterrupt, DON'T call sys.exit()
+        # This propagates to caller, allowing finally blocks to execute
+
+        raise KeyboardInterrupt("User interrupted adaptation")
     
-    def load(self) -> Optional[Dict]:
+    def save(self):
         """
-        Load existing checkpoint.
+        Save checkpoint with atomic write and proper fsync.
 
-        Returns:
-            Dict with checkpoint data, or None if no valid checkpoint exists
+        Protections:
+        - Writes to temp file first
+        - Uses os.fsync() to ensure data hist disk
+        - Atomic rename
+        - Sets flag to prevent interrupt during save
         """
-        if not self.exists():
+        self._save_in_progress = True
+
+        try:
+            self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_path = self.checkpoint_path.with_suffix('.tmp')
+
+            # Write to temp file with explicit flush
+            with open(temp_path, 'w', encoding='utf-8') as f:
+                json.dump(self.data, f, indent=2, ensure_ascii=False)
+                f.flush() # Flush Python buffer
+                os.fsync(f.fileno()) # Force OS to write to disk NOW
+
+            # Atomic rename
+            os.replace(str(temp_path), str(self.checkpoint_path))
+        
+        except Exception as e:
+            # Clean up temp file on error
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except:
+                    pass
+            raise # Re-raise original exception
+
+        finally:
+            self._save_in_progress = False # Always reset flag
+
+    def load(self) -> Optional[Dict]:
+        """Load checkpoint with validation"""
+        if not self.checkpoint_path.exists():
             return None
         
         try:
             with open(self.checkpoint_path, 'r', encoding='utf-8') as f:
-                self.data = json.load(f)
-            
-            # Validate checkpoint structure.
-            required_fields = ['checkpoint_version', 'last_completed_epoch', 'current_playbook', 'adaptation_history']
-            missing_fields = [f for f in required_fields if f not in self.data]
+                data = json.load(f)
 
-            if missing_fields:
-                print(f"⚠️ Checkpoint missing fields: {missing_fields}")
-                print("Starting fresh adaptation run.")
-                return None
+                required_keys = ['checkpoint_version', 'last_completed_epoch', 'current_playbook', 'adaptation_history']
+                if not all(k in data for k in required_keys):
+                    print(f"⚠️ Checkpoint missing required keys: {required_keys}")
+                    return None
+                
+                print(f"📂 Load checkpoint from: {self.checkpoint_path}")
+                return data
             
-            return self.data
-        
         except json.JSONDecodeError as e:
-            print(f"⚠️ Failed to parse checkpoint: {e}")
-            print("Starting fresh adaptation run.")
+            print(f"❌ Checkpoint corrupted (invalid JSON): {e}")
+            print("     Starting from scratch")
             return None
         except Exception as e:
-            print(f"⚠️ Error loading checkpoint: {e}")
+            print(f"❌ Failed to load checkpoint: {e}")
             return None
+
+    def exists(self) -> bool:
+        """Check if a checkpoint file exists."""
+        return self.checkpoint_path.exists()
         
     def initialize(self, total_epochs: int, initial_playbook: Dict, training_samples_count: int) -> Dict:
         """

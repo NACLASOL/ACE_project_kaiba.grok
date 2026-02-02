@@ -11,7 +11,7 @@ from opik import track
 
 
 from parse_data import rubric_bullets
-from constants import LATEST_PLAYBOOK_FILE
+from constants import LATEST_PLAYBOOK_FILE, SEED_BULLETS
 
 
 load_dotenv()
@@ -44,11 +44,7 @@ class UPVGrader:
 
         # Initialize or load playbook
         if custom_playbook:
-            # START DIAGNOSITC
-            print(f"🔍 DEBUG: custom_playbook keys: {custom_playbook.keys()}")
-            self.playbook = Playbook.from_dict(custom_playbook) # DON'T DELETE
-            print(f"🔍 DEBUG: Result type: {type(self.playbook)}, is None: {self.playbook is None}")
-            # END DIAGNOSTIC
+            self.playbook = Playbook.from_dict(custom_playbook)
         else:
             self.playbook = Playbook() # Initalize with seed bullets
             for bullet in SEED_BULLETS:
@@ -67,12 +63,3 @@ class UPVGrader:
     def get_curator(self):
         """Return curator instance."""
         return self.curator
-
-SEED_BULLETS = [
-    "OUTPUT FORMAT: Respond with a raw JSON object ONLY: {\"reasoning\": \"...\", \"bullet_ids\": [...], \"final_answer\": \"RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0\"}. NO Markdown fences (```json), NO extra text, NO explanations outside JSON.",
-    "CRITICAL: In 'final_answer', use EXACTLY: RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0 at end. Ensure a valid and parseable JSON overall.",
-    "JSON RULES: Use \\n for line breaks in 'reasoning'. Escape quotes properly. No apostrophes in strings.",
-    "CHAIN OF THOUGHT: 1. Quote evidence. 2. Map to rubric level. 3. Justify score. Put in 'reasoning'.",
-    "DETERMINISM: Ignore creativity; stick to rubric descriptors verbatim.",
-    "RUBRIC BULLETS: Use these for grading.", # rubric_bullets will be added dynamically.
-]

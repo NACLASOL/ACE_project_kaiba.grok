@@ -180,7 +180,7 @@ with st.sidebar:
     mode = st.radio(
         "Grading Mode",
         ["Single Article", "Batch Upload"],
-        help = "Choose between grading a single artile or uploading multiple."
+        help = "Choose between grading a single article or uploading multiple."
     )
 
     st.markdown("---")

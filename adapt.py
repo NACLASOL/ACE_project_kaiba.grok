@@ -180,21 +180,8 @@ def adaptation_epoch(grader: UPVGrader, samples, epoch: int) -> dict:
             raise ValueError(f"LLM API failure - empty response. Prompt may exceed token limit.") from e
 
         except Exception as e:
-            print(f"Exception Type: {type(e).__name__}")
-            print(f"Exception Message: {str(e)}")
-
-            log_failure(sample['input'][:500], str(e))
-            # Fallback scores.
-            ai_scores = {
-                'TA': 0.0,
-                'CC': 0.0,
-                'GR': 0.0,
-                'LR': 0.0,
-                'OWP': 0.0,
-            }
-
-            mismatch = 3.0
-            epoch_mismatches.append(mismatch)
+            print(f"❌ Generation failed: {type(e).__name__}: {str(e)}")
+            log_failure(sample['input'][:500], f"Generation: {str(e)}")
             continue
             
         # === PARSE SCORES ===
@@ -208,22 +195,10 @@ def adaptation_epoch(grader: UPVGrader, samples, epoch: int) -> dict:
         )
         try:
             ai_scores = extract_scores_from_response(result.final_answer)
-        except ValueError as e:
-            print(f"Exception Type: {type(e).__name__}")
-            print(f"Exception Message: {str(e)}")
-            log_failure(result.final_answer, f"Parse failed: {str(e)}")
-            ai_scores = {
-                'TA': 0.0,
-                'CC': 0.0,
-                'GR': 0.0,
-                'LR': 0.0,
-                'OWP': 0.0
-            }
-            log_failure(result.final_answer[:500], "Regex parse failed - no match.")
-
-            ai_scores = {'TA' : 0.0, 'CC': 0.0, 'GR': 0.0, 'LR': 0.0, 'OWP': 0.0}
-            mismatch = 3.0
-            epoch_mismatches.append(mismatch)
+        except (ValueError, AttributeError) as e:
+            print(f"❌ Sample {sample_idx}: Score extraction failed")
+            answer_snippet = (result.final_answer[:500] if result.final_answer else "<Empty>")
+            log_failure(answer_snippet, f"Parse failed: {str(e)}")
             continue
         
         # === COMPUTE MISMATCH ===
@@ -247,7 +222,11 @@ def adaptation_epoch(grader: UPVGrader, samples, epoch: int) -> dict:
             }
         )
 
-        feedback = f"Human: {human}. AI: {ai_scores}. Avg mismatch: {mismatch:.2f}"
+        feedback = f"""
+Human scores: {human}. 
+AI scores: {ai_scores}.
+Avg mismatch: {mismatch:.2f}
+"""
 
         # === REFLECT ===
         update_current_span(
@@ -260,17 +239,16 @@ def adaptation_epoch(grader: UPVGrader, samples, epoch: int) -> dict:
         )
         try:
             reflection = reflector.reflect(
-                question="",
+                question=sample['input'],
                 generator_output=result,
                 playbook=playbook,
                 ground_truth=str(human),
                 feedback=feedback,
             )
         except Exception as e:
-            print(f"Exception Type: {type(e).__name__}")
-            print(f"Exception Message: {str(e)}")
+            print(f"❌ Reflection failed: {type(e).__name__}: {str(e)}")
             log_failure(feedback, f"Reflect failed: {str(e)}")
-            reflection = "" # Skip the reflection.
+            continue
 
         # === CURATE & APPLY DELTA ===
         update_current_span(
@@ -287,6 +265,10 @@ def adaptation_epoch(grader: UPVGrader, samples, epoch: int) -> dict:
                 question_context="",
                 progress=f"Epoch {epoch}, Sample {sample_idx}",
             )
+
+            if not deltas or not deltas.delta:
+                print("⚠️  Curator returned no deltas")
+                continue
 
             playbook.apply_delta(deltas.delta)
 

@@ -1,36 +1,82 @@
+"""
+Configuration module for the ACE UPV Article Grader.
+
+This module loads configuration from environment variables.
+
+Environment Variables:
+    Required:
+        - OPIK_PROJECT_NAME: Opik project name for tracking
+    
+    Optional:
+        - LOG_DIR: Directory for logs (default: "logs")
+        - OPIK_WORKSPACE: Opik workspace name (default: "default")
+        - EPOCHS: Number of adaptation epochs (default: 10)
+        - CHECKPOINT_ENABLED: Enable checkpoint/resume (default: true)
+        - DEBUG_ADAPT: Enable debug logging (default: false)
+        - ENABLE_BASELINE_LOGGING: Log baseline results (default: false)
+        - VIZ_FORMAT: Figure format for visualizations (default: "png")
+
+Example .env file:
+    OPIK_PROJECT_NAME=ace-grader-production
+    OPIK_WORKSPACE=research-team
+    LOG_DIR=./logs
+    EPOCHS=15
+    DEBUG_ADAPT=true
+"""
+
 import os
+import sys
 from pathlib import Path
+from typing import List, Optional, Final
+from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
 load_dotenv()
 
+# === PATH CONFIGURATION ===
 
-# === BASE DIRECTORIES ===
 BASE_DIR = Path(".").resolve()
+"""Base directory of the project (current working directory)."""
 
-# Directory where the parsed PDFs are stored (rubric, examples)
 PARSE_DIR = Path(os.getenv("ACE_PARSE_DIR", BASE_DIR / "parse")).resolve()
+"""Directory where the parsed PDFs are stored (rubric, examples)"""
 
-# Logs root.
 LOG_DIR = Path(os.getenv("ACE_LOG_DIR", BASE_DIR / "logs")).resolve()
+"""Directory where logs and checkpoints are stored."""
 
-# Epochs dir under logs (used by adapt.py).
 EPOCHS_DIR = Path(os.getenv("ACE_EPOCHS_DIR", LOG_DIR / "epochs")).resolve()
+"""Directory containing per-epoch JSON filed under logs (used by adapt.py)."""
 
 # Ensure the core directories exist.
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 EPOCHS_DIR.mkdir(parents=True, exist_ok=True)
 
+# === OPIK CONFIGURATION ===
+OPIK_PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME")
+"""
+The Opik project name for program execution trace logging.\n
+Must set in .env file 
+"""
+
+# === ADAPTATION PARAMETERS === 
+EPOCHS = 10
+"""Number of Epochs for the adaptation process."""
+
+DEBUG_ADAPT = False
+"""Whether debug conditionals in the `adapt.py` file should execute."""
+
+# === CHECKPOINT CONFIGURATION ===
+CHECKPOINT_ENABLED = True
+"""Determines whether the `adapt.py` file should execute in checkpoint mode."""
+
+CHECKPOINT_PATH = LOG_DIR / "adaptation_checkpoint.json"
+"""File path where the adaptation checkpoint is stored."""
 
 # === FILES ===
-RUBRIC_FILE = Path(
-    os.getenv("ACE_RUBRIC_FILE", PARSE_DIR / "internship.enhance_b2_article_writing_rubric_structured.pdf")
-).resolve()
+RUBRIC_FILE = os.getenv("ACE_RUBRIC_FILE", PARSE_DIR / "internship.enhance_b2_article_writing_rubric_structured.pdf")
 
 # Student examples PDF.
-EXAMPLES_FILE = Path(
-    os.getenv("ACE_EXAMPLES_FILE", PARSE_DIR / "internship.b2_writing_examples_scores.pdf")
-).resolve()
+EXAMPLES_FILE = os.getenv("ACE_EXAMPLES_FILE", PARSE_DIR / "internship.b2_writing_examples_scores.pdf")
 
 # JSON summarising adaptation loop.
 ADAPTATION_SUMMARY_FILE = LOG_DIR / "adaptation_summary.json"
@@ -50,7 +96,7 @@ EPOCH_FAILURE_LOG = LOG_DIR / "epoch_failure.log"
 # JSON failures from ACE roles.
 JSON_FAILURE_LOG = LOG_DIR / "json_failures.log"
 
-# === TASK PROMPT ===
+
 TASK_PROMPT = """
 You have just seen the following advertisement in the university magazine:
 Share with us what you think about the importance of physically attending classes in-person for university students instead of online classes. We're looking for articles about the benefits of studying in a classroom with a teacher. The best article will be published in our university magazine and the winner will receive a €200 gift card.
@@ -61,15 +107,204 @@ resources and facilities.
 • suggest ways in which teachers can encourage students to go to class.
 Give your article a title. Write your ARTICLE in 180-220 words.
 """
+"""The task prompt used by the ACE roles in the adaptation process"""
 
-# === ADAPTATION CONFIGURATION ===
-EPOCHS = 10
-DEBUG_ADAPT = False
+SEED_BULLETS = [
+    "OUTPUT FORMAT: Respond with a raw JSON object ONLY: {\"reasoning\": \"...\", \"bullet_ids\": [...], \"final_answer\": \"RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0\"}. NO Markdown fences (```json), NO extra text, NO explanations outside JSON.",
+    "CRITICAL: In 'final_answer', use EXACTLY: RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0 at end. Ensure a valid and parseable JSON overall.",
+    "JSON RULES: Use \\n for line breaks in 'reasoning'. Escape quotes properly. No apostrophes in strings.",
+    "CHAIN OF THOUGHT: 1. Quote evidence. 2. Map to rubric level. 3. Justify score. Put in 'reasoning'.",
+    "DETERMINISM: Ignore creativity; stick to rubric descriptors verbatim.",
+    "RUBRIC BULLETS: Use these for grading.", # rubric_bullets will be added dynamically.
+]
+"""Seed bullets used for a fresh Playbook initiation."""
 
-# === OPIK CONFIGURATION ===
-OPIK_PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME")
+# === CONFIGURATION VALIDATION ===
 
-# === CHECKPOINT CONFIGURATION ===
-CHECKPOINT_ENABLED = True
-CHECKPOINT_PATH = LOG_DIR / "adaptation_checkpoint.json"
+@dataclass
+class ConfigValidationError:
+    """Represents a configuration validaton error."""
+    key: str
+    value: Optional[str]
+    error: str
+    severity: str
+
+class ConfigValidator:
+    """Validates configuration and provides helpful error messages."""
+
+    def __init__(self):
+        self.errors: List[ConfigValidationError] = []
+        self.warnings: List[ConfigValidationError] = []
+
+    def validate_required_string(self, key: str, value: Optional[str], description: str = ""):
+        """Validate that a required string is present and non-empty."""
+        if value is None or not value.strip():
+            self.errors.append(ConfigValidationError(
+                key=key,
+                value=value,
+                error=f"Required configuration missing: {key}. {description}",
+                severity='error'
+            ))
+            return False
+        return True
+    
+    def validate_path_exists(self, key: str, path: Path, description: str = ""):
+        """Validate that a path exists."""
+        if not path.exists():
+            self.warnings.append(ConfigValidationError(
+                key=key,
+                value=str(path),
+                error=f"Path does not exist: {path}. {description}",
+                severity='warning'
+            ))
+            return False
+        return True
+    
+    def validate_directory_writable(self, key: str, directory: Path):
+        """Validate that a directory is writable."""
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            test_file = directory / ".write_test"
+            test_file.touch()
+            test_file.unlink()
+            return True
+        except Exception as e:
+            self.errors.append(ConfigValidationError(
+                key=key,
+                value=str(directory),
+                error=f"Directory not writable: {directory}. Error: {e}",
+                severity='error'
+            ))
+            return False
+        
+    def validate_int_range(self, key: str, value: int, min_val: int, max_val: int):
+        """Validate that an integer is within a valid range."""
+        if not (min_val <= value <= max_val):
+            self.errors.append(ConfigValidationError(
+                key=key,
+                value=str(value),
+                error=f"{key}={value} out of valid range [{min_val}, {max_val}]",
+                severity='error'
+            ))
+            return False
+        return True
+    
+    def print_summary(self):
+        """Print validation summary."""
+        if not self.errors and not self.warnings:
+            print("✅ Configuration validation passed")
+            return True
+        
+        if self.warnings:
+            print(f"\n⚠️ Configuration Warnings ({len(self.warnings)}):")
+            for warning in self.warnings:
+                print(f"        • {warning.key}: {warning.error}")
+
+        if self.errors:
+            print(f"\n❌ Configuration Errors ({len(self.errors)}):")
+            for error in self.errors:
+                print(f"        • {error.key}: {error.error}")
+
+            print("\n💡 How to fix:")
+            print("     1. Ensure constants are configured correctly")
+            print("     2. Create a .env file in the project root")
+            print("     3. Add the required configuration")
+            print("     4. See .env.example for a complete template")
+            
+            return False
+        return True
+    
+    def validate_configuration() -> bool:
+        """
+        Validate all configuration settings.
+
+        Returns:
+            bool: True if configuration is valid, False otherwise
+
+        Raises:
+            SystemExit: If critical configuration errors are found
+        """
+        validator = ConfigValidator()
+
+        # === REQUIRED SETTINGS ===
+        validator.validate_required_string(
+            "OPIK_PROJECT_NAME",
+            OPIK_PROJECT_NAME,
+            "This is required for program execution tracking. Set it in the .env file."
+        )
+
+        validator.validate_required_string(
+            "ACE_RUBRIC_FILE",
+            RUBRIC_FILE,
+            "This is necessary to execute the adaptation program."
+        )
+
+        validator.validate_required_string(
+            "ACE_EXAMPLES_FILE",
+            EXAMPLES_FILE,
+            "This is necessary to execute the adaptation program."
+        )
+        
+
+        # === PATH VALIDATION ===
+        validator.validate_path_exists(
+            "LOG_DIR",
+            LOG_DIR,
+            "Ensure Log directory has been created"
+        )
+
+        validator.validate_path_exists(
+            "EPOCHS_DIR",
+            EPOCHS_DIR,
+            "Ensure the Epochs directory has been created."
+        )
+
+        validator.validate_directory_writable("LOG_DIR", LOG_DIR)
+
+        # === PARAMETER VALIDATION ===
+        validator.validate_int_range("EPOCHS", EPOCHS, 1, 999)
+
+        # === PRINT SUMMARY ===
+        is_valid = validator.print_summary()
+
+        if not is_valid:
+            print("\n❌ Configuration validation failed. Please fix the errors above.")
+            print("     Application cannot start with invalid configuration.")
+            sys.exit(1)
+
+        return True
+    
+
+if __name__ != "__main__":
+    # Only validate when imported (not when running this file directly)
+    try:
+        ConfigValidator.validate_configuration()
+    except SystemExit:
+        # Re-raise to stop application startup
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error during configuration validation: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    """
+    Run this file directly to validate configuration:
+
+        `python constants.py`
+    """
+
+    print("=" * 70)
+    print("CONFIGURATION VALIDATION TEST")
+    print("=" * 70)
+    print()
+
+    # Test validation.
+    is_valid = ConfigValidator.validate_configuration()
+
+    if is_valid:
+        print("\n" + "=" * 70)
+        print("CONIGURATION IS VALID")
+        print("=" * 70)
+
+
 

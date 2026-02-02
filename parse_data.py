@@ -197,8 +197,8 @@ def extract_examples(pdf_path: str, rubric_bullets: str) -> List[Dict]:
                     if len(scores) >= 4:    # Valid if at least 4 scores.
                         if 'OWP' not in scores:
                             avg = statistics.mean(scores.values())
-                            scores['OWP'] = round(avg) # Rounds to nearest whole number for CEFR alignment.
-                    
+                            scores['OWP'] = float(round(avg)) # Rounds to nearest whole number for CEFR alignment.
+                
                         samples.append(_finalize_sample(current_title, current_article, rubric_bullets, scores))
                         log_debug(f"Extracted scores for Example {example_num}: {scores}\n")
                     else:
@@ -258,10 +258,6 @@ RUBRIC:
 INSTRUCTIONS: You are grading a B2 English article. Analyze step-by-step in 'reasoning', reference useful playbook bullets in 'bullet_ids', and put socres in 'final_answer' as RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0.
 OUTPUT RAW JSON ONLY: {{"reasoning": "your analysis with \\n for breaks", "bullet_ids": ["id1", "id2"], "final_answer": "RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0"}}. NO Markdown (no '''json), NO extra text, No explanations outside JSON. Use \\n for line breaks in reasoning. Scores: whole floats [1.0-5.0]."""
 
-
-    if scores and len(scores) >= 4 and 'OWP' not in scores:
-        avg = statistics.mean([scores.get(k, 3.0) for k in ['TA', 'CC', 'GR', 'LR']])
-        scores['OWP'] = round(avg) # Whole number. 
 
 
     ground_truth = scores or {

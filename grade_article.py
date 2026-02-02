@@ -212,12 +212,6 @@ PLAYBOOK STRATEGIES:
     end_time = time.time()
     total_duration = end_time - start_time
 
-    # === AUTOMATED BASELINE RESULTS LOGGING FOR TESTING PHASE ===
-    baseline_results_json = {"id": None, "ai_results": scores, "ground_truth": {"TA": None, "CC": None, "GR": None, "LR": None, "OWP": None}, "reasoning_length": len(response.reasoning.split()) if response.reasoning else 0, "processing_time": round(total_duration, 2)}
-    
-    with jsonlines.open('testing_files/baseline_results.jsonl', 'a') as writer:
-        writer.write(baseline_results_json)
-
     # === RETURN RESULT ===
     return {
         "scores": scores,
