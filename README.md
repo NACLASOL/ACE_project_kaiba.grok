@@ -1,120 +1,343 @@
-# ACE Implementation for CEFR B2 English Article Corrections.
+# ACE Implementation for CEFR B2 English Article Grading
 
-## Prerequisites.
+An AI-powered grading system for CEFR B2 English articles using **Agentic Context Engineering (ACE)**. This system uses iterative playbook refinement to align AI grading with human expert scores.
 
-- Python 3.11 or higher.
-- An API key for Google or Groq.
+## 🎯 Features
 
-## Quick-start guide.
+- **Adaptive Grading**: Uses ACE framework roles (Generator, Reflector, Curator) to evolve grading strategies
+- **Checkpoint System**: Resume interrupted adaptation runs without losing progress
+- **Batch Processing**: Grade multiple articles simultaneously via Streamlit UI
+- **Opik Tracking**: Full observability with execution traces and metadata
+- **Visualization Tools**: Track playbook evolution and mismatch reduction across epochs
+- **Configuration Validation**: Comprehensive startup checks for missing dependencies
 
-Clone this repository using:
+## 📋 Prerequisites
+
+- **Python**: 3.11 or higher
+- **API Access**: Google Gemini, Groq API key, or other LLM API's
+- **Opik Account**: (Optional) For execution tracking and observability
+- **PDF Files**: Rubric and student examples (see Project Structure)
+
+## 🚀 Quick Start Guide
+
+### 1. Clone Repository
+
 ```bash
-git clone repository-link-here
+git clone https://github.com/NACLASOL/ACE_project_kaiba.grok
+cd ACE_project_kaiba.grok
 ```
-Then proceed as follows inside the repository folder.
 
-### Step 1: Create a virtual environment.
-Create and activate your virtual environment:
+### 2. Create Virtual Environment
 
+**Windows:**
 ```bash
-# For Windows.
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-python -m venv <your-venv-name>
-# Activate.
-\<your-venv-name>\Scripts\activate
-
-# For MacOS
-python3 -m venv <your-venv-name>
-# Activate.
-source <your-venv-name>/bin/activate
+python -m venv venv
+.\venv\Scripts\activate
 ```
 
+**macOS/Linux:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
 
-### Step 2: Download dependencies.
-Install the repository dependencies using the `requirements.txt` file:
+### 3. Install Dependencies
 
 ```bash
-# For Windows.
-pip install -r .\requirements.txt
-
-# For MacOS.
 pip install -r requirements.txt
 ```
 
+### 4. Configure Environment
 
-### Step 3: Set up your environment.
+Create a `.env` file in the project root:
 
-Create a `.env` file with your API key:
+```bash
+# === REQUIRED ===
 
-```python
-# For Google.
-GOOGLE_API_KEY=your-key-here
+# API Keys (choose one or more)
+GOOGLE_API_KEY=your-google-key
+GROQ_API_KEY=your-groq-key
+OTHER_API_KEY=your-api-key
 
-# For Groq.
-GROQ_API_KEY=your-key-here
+# Opik Tracking (optional)
+OPIK_PROJECT_NAME=your-project-name
+COMET_API_KEY=your-opik-key
+OPIK_TRACK_DISABLE=True
+
+# === OPTIONAL CONFIGURATION ===
+# Directories
+ACE_LOG_DIR=./logs
+ACE_EPOCHS_DIR=./logs/epochs
+ACE_PARSE_DIR=./parse
+
+# Adaptation Parameters
+DEBUG_ADAPT=False
+CHECKPOINT_ENABLED=True
+
+# File locations
+ACE_RUBRIC_FILE=parse/internship.enhance_b2_article_writing_rubric_structured.pdf
+ACE_EXAMPLES_FILE=parse/debug_batch_4_examples.pdf
 ```
 
-### Step 4: Run the adaptation process.
-Create you first Playbook with the `adapt.py` file:
+### 5. Prepare Data Files
 
+Place your rubric and examples PDFs in the `parse/` directory:
+```
+parse/
+├── internship.enhance_b2_article_writing_rubric_structured.pdf
+├── internship.b2_writing_examples_scores.pdf
+└── training_batch_70_examples.pdf
+...
+```
+
+### 6. Validate Configuration
+
+```bash
+python constants.py
+```
+
+This validates all configuration settings and reports any issues.
+
+### 7. Run Adaptation Process
+
+**Standard Mode:**
 ```bash
 python adapt.py
 ```
 
-You now have an AI updated Playbook in `logs\latest_playbook.json`.
+**Checkpoint Mode (Resume on Interrupt):**
+```bash
+python adapt.py
+# Press Ctrl+C to save progress
+# Run again to resume from last completed epoch
+```
 
-### Additional tools.
-Execute the `viz.py` file to visualize the Plabook Adaptation progress.
+**Custom Epochs:**
+```bash
+python adapt.py 5  # Run 5 epochs instead of default
+```
+
+Upon the completion of the adaptation process, the evolved playbook will be saved to `logs/latest_playbook.json`.
+
+## 📊 Usage Examples
+
+### Visualize Adaptation Progress
+
 ```bash
 python viz.py
 ```
 
-Run the Article Grader application using Streamlit.
-```bash
-# TO START:
-streamlit run grader_ui.py
+Generates plots showing:
+- Average mismatch vs. playbook size over epochs
+- Delta operations (ADD/MODIFY/DELETE) per epoch
+- Playbook growth trajectory
 
-# TO STOP: `ctrl + c` inside terminal. Then close the application tab in your browser.
+### Grade Individual Article
+
+```bash
+python grade_article.py
 ```
 
-## Using Opik Tracking.
+Edit the example at the bottom of the file or import `grade_article()` function.
 
-Add the following to your `.env` file:
+### Launch Streamlit UI
+
+```bash
+streamlit run grader_ui.py
+```
+
+**Features:**
+- Single article grading with detailed justification
+- Batch CSV upload (semicolon-separated)
+- Download results as JSON
+- Average statistics for batch grading
+
+**CSV Format for Batch Grading:**
+```csv
+title;text
+"Article Title 1";"Full article text here..."
+"Article Title 2";"Another article text..."
+```
+
+## 📁 Project Structure
+
+```
+ACE_project_kaiba.grok/
+├── adapt.py              # Main adaptation loop with ACE framework
+├── grade_article.py      # Production grading with evolved playbook
+├── grader_ui.py          # Streamlit web interface
+├── parse_data.py         # PDF extraction (rubric + examples)
+├── upv_grader.py         # LLM client and ACE component initialization
+├── checkpoint.py         # Checkpoint/resume system with signal handling
+├── viz.py                # Visualization tools for adaptation metrics
+├── constants.py          # Configuration management and validation
+├── requirements.txt      # Python dependencies
+├── .env                  # Environment variables (create this)
+├── parse/                # PDF files directory
+│   ├── internship.enhance_b2_article_writing_rubric_structured.pdf
+│   ├── internship.b2_writing_examples_scores.pdf
+│   └── ...
+└── logs/                 # Generated output directory
+    ├── latest_playbook.json
+    ├── adaptation_checkpoint.json
+    ├── adaptation_summary.json
+    ├── grades.log
+    ├── parse_debug.log
+    ├── samples/
+    │   └── train_samples.json
+    └── epochs/
+        ├── epoch-00.json
+        ├── epoch-01.json
+        └── ...
+```
+
+## 🔧 Configuration Details
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPIK_PROJECT_NAME` | ❌ No | - | Project name for Opik tracking |
+| `OTHER_API_KEY` | ⚠️ One required | - | LLM API key |
+| `GOOGLE_API_KEY` | ⚠️ One required | - | Google Gemini API key |
+| `GROQ_API_KEY` | ⚠️ One required | - | Groq API key |
+| `COMET_API_KEY` | ❌ No | - | Opik/Comet ML API key |
+| `OPIK_TRACK_DISABLE` | ✅ Yes | `3` | Number of adaptation epochs |
+| `ACE_LOG_DIR` | ✅ Yes | `./logs` | Output directory |
+| `ACE_PARSE_DIR` | ✅ Yes | `./parse` | PDF files directory |
+| `CHECKPOINT_ENABLED` | ✅ Yes | `True` | Enable checkpoint/resume |
+| `DEBUG_ADAPT` | ❌ No | `False` | Enable debug logging |
+
+### LLM Model Configuration
+
+Edit `upv_grader.py` to change the model:
 
 ```python
-# OPIK TRACKING.
-OPIK_PROJECT_NAME=your-project-name-here 
-COMET_API_KEY=your-key-here
+# Available options:
+MODEL_YOUR-MODEL = ...                              # PoliGPT (UPV)
+MODEL_GROQ = 'groq/meta-llama/llama-4-scout-17b-16e-instruct'
+MODEL_GOOGLE = 'gemini/gemini-2.5-flash'
 ```
-Opik should be installed using the project `requirements.txt` file.
-You **may** need to configure your Opik client in your terminal:
+
+## 🎓 How It Works
+
+### ACE Framework Components
+
+1. **Generator**: Produces initial article grades using current playbook
+2. **Reflector**: Analyzes mismatches between AI and human scores
+3. **Curator**: Proposes playbook modifications (ADD/MODIFY/DELETE operations)
+4. **Playbook**: Evolving knowledge base of grading strategies
+
+### Adaptation Loop
+
+```
+For each epoch:
+  For each training sample:
+    1. Generate scores using current playbook
+    2. Compare with human ground truth
+    3. Reflect on mismatches
+    4. Curate playbook improvements
+    5. Apply deltas to playbook
+  
+  Save epoch checkpoint
+  Log metrics (mismatch, playbook size, deltas)
+```
+
+### Checkpoint System
+
+- **Automatic saving** after each completed epoch
+- **Interrupt handling**: Press `Ctrl+C` once to save and exit safely
+- **Resume capability**: Run `adapt.py` again to continue from last checkpoint
+- **Atomic writes**: Uses `os.fsync()` to prevent data corruption
+
+## 📈 Output Files
+
+| File | Description |
+|------|-------------|
+| `latest_playbook.json` | Evolved playbook after adaptation |
+| `adaptation_summary.json` | Aggregated metrics across all epochs |
+| `adaptation_checkpoint.json` | Resume state (deleted on completion) |
+| `epochs/epoch-XX.json` | Per-epoch metrics (mismatch, deltas, size) |
+| `grades.log` | Production grading audit log |
+| `parse_debug.log` | PDF extraction debugging info |
+| `samples/train_samples.json` | Extracted training examples |
+
+## 🔍 Troubleshooting
+
+### Configuration Errors
+
+**Error: `OPIK_PROJECT_NAME` missing**
+```bash
+# Add to .env file:
+OPIK_PROJECT_NAME=my-project-name
+```
+
+**Error: Rubric/Examples PDF not found**
+```bash
+# Ensure files exist:
+ls parse/*.pdf
+
+# Or set custom paths in .env:
+ACE_RUBRIC_FILE=./parse/your_rubric.pdf
+ACE_EXAMPLES_FILE=./parse/your_examples.pdf
+```
+
+### Runtime Issues
+
+**Empty LLM Response (Token Limit Exceeded)**
+- Symptom: `TypeError: empty response` or `LLM API failure`
+- Solution: Reduce playbook size or use a model with larger context window
+
+**Checkpoint Corruption**
+```bash
+# Delete corrupted checkpoint and restart:
+rm logs/adaptation_checkpoint.json
+python adapt.py
+```
+
+**Score Extraction Failure**
+- Check that LLM output follows format: `RESULTS,TA:X.0,CC:X.0,GR:X.0,LR:X.0,OWP:X.0`
+- Review `logs/epoch_failure.log` for debugging details
+
+### Opik Tracking Issues
 
 ```bash
+# Reconfigure Opik client:
 opik configure
+
+# Test connection:
+python -c "from opik import track; print('Opik configured successfully')"
 ```
 
-When running any of the following files: `adapt.py`, `grade_article.py`, `grader_ui.py`; your traces will be logged to your Opik account, as configured during the Opik configuration.
+## 📊 Evaluation Metrics
 
-Custom Opik evaluation rules are available upon request. Please contact the developer using any form of communication, including the email provided at the end of this file.
+The system tracks:
+- **Average Mismatch**: Mean absolute error between AI and human scores
+- **Playbook Size**: Number of strategic bullets in playbook
+- **Delta Operations**: ADD/MODIFY/DELETE counts per epoch
+- **Score Categories**: TA (Task Achievement), CC (Cohesion), GR (Grammar), LR (Lexical), OWP (Overall)
 
-## File functionality.
+## 🤝 Contributing
 
-- `adapt.py`:
-Main Agentic Context Engineering (ACE) adaptation process. Uses the main ACE roles to create an AI updated ACE Notebook.
+This is an academic research project. For collaboration opportunities or questions:
 
-- `grade_article.py`:
-This file grades a single CEFR B2 English exam article using the latest Playbook adaptation.
+**Author**: Nicholas Clancy Soler  
+**Email**: naclasol@masters.upv.es  
+**Institution**: Universitat Politècnica de València (UPV)  
+**Repository**: [https://github.com/NACLASOL/ACE_project_kaiba.grok](https://github.com/NACLASOL/ACE_project_kaiba.grok)
 
-- `grader_ui.py`:
-Basic Streamlit application to grade student articles individually or in batches.
+## 📄 License
 
-- `parse_data.py`:
-Extracts the CEFR B2 English Article Writing Rubric and student article examples with their respective scores from their corresponding PDF files.
+Academic research project - please contact author for usage permissions.
 
-- `upv_grader`:
-Configures the LLM's used by the `adapt.py` file, initializes the main ACE roles, and creates the initial Playbook seeds.
+## 🙏 Acknowledgments
 
-- `viz.py`:
-Graphic tool to visualize the evolution of the Playbook adaptations, including the number of delta operations (changes to the Playbook) performed in one epoch (iteration), and the number of mismatches (differences between AI score and human score per article example).
+- **ACE Framework**: Agentic Context Engineering methodology
+- **Opik**: Execution tracing and observability platform
+- **LiteLLM**: Unified LLM API interface
+- **Streamlit**: Web application framework
 
-Made By: Nicholas Clancy Soler | naclasol@masters.upv.es
+---
+
+**Last Updated**: February 2026
