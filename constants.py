@@ -59,7 +59,7 @@ Must set in .env file
 """
 
 # === ADAPTATION PARAMETERS === 
-EPOCHS = 10
+EPOCHS = 3
 """Number of Epochs for the adaptation process."""
 
 DEBUG_ADAPT = False
@@ -278,7 +278,8 @@ class ConfigValidator:
 if __name__ != "__main__":
     # Only validate when imported (not when running this file directly)
     try:
-        ConfigValidator.validate_configuration()
+        validator = ConfigValidator
+        validator.validate_configuration()
     except SystemExit:
         # Re-raise to stop application startup
         raise

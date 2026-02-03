@@ -362,27 +362,44 @@ def adaptation_with_checkpoint(epochs: int = EPOCHS):
     # Check for existing checkpoint
     existing_checkpoint = checkpoint.load()
 
-    if DEBUG_ADAPT and existing_checkpoint:
-        print("🔍 DEBUG: Checkpoint playbook structure:")
-        print(json.dumps(existing_checkpoint['current_playbook'], indent=2)[:500])
+    if DEBUG_ADAPT:
+        print("🔍 DEBUG Checkpoint state:")
+        print(f"    existing_checkpoint is None: {existing_checkpoint is None}")
+        print(f"    checkpoint.data is None: {checkpoint.data is None}")
+        if checkpoint.data:
+            print(f"    checkpoint.data['last_completed_epoch']: {checkpoint.data.get('last_completed_epoch')}")
+            print(f"    checkpoint.data['total_epochs']: {checkpoint.data.get('total_epochs')}")
+            print(f"    should_resume(): {checkpoint.should_resume()}")
+            print(f"    is_complete(): {checkpoint.is_complete()}\n")
 
     if existing_checkpoint and checkpoint.should_resume():
-        # RESUME MODE
+        # === RESUME MODE === 
         print("\n" + "="*70)
         print("🔄 RESUMING FROM CHECKPOINT")
         print("="*70)
-
         checkpoint.print_status()
 
         # Validate checkpoint matches current configuration.
         if existing_checkpoint['total_epochs'] != epochs:
             print(f"⚠️ WARNING: Checkpoint has {existing_checkpoint['total_epochs']} epochs")
             print(f"        but current config specifies {epochs} epochs")
-            response = input("\n    Continue with checkpoint's epoch count? (y/n): ")
-            if response.lower() != 'y':
-                print("Aborting. Delete checkpoint manually to start fresh.")
-                return
-            epochs = existing_checkpoint['total_epochs']
+
+            if existing_checkpoint['total_epochs'] < epochs:
+                print(f"\n    Option 1: Continue with checkpoint's {existing_checkpoint['total_epochs']} epochs")
+                print(f"    Option 2: Extend to {epochs} epochs (will continue after checkpoint completes)")
+                response = input("\n Extend to new epoch count? (y/n): ")
+                if response.lower() == 'y':
+                    print(f"    ✅ Will run {epochs} epochs total")
+                else:
+                    epochs = existing_checkpoint['total_epochs']
+            else:
+                # Checkpoint has more epochs than requested
+                print(f"\n ⚠️ Checkpoint expects more epochs than configured!")
+                response = input("\n    Continue with checkpoint's epoch count? (y/n): ")
+                if response.lower() != 'y':
+                    print("❌ Aborting. Delete checkpoint manually to start fresh.")
+                    return
+                epochs = existing_checkpoint['total_epochs']
 
         if existing_checkpoint['training_samples_count'] != len(train_samples):
             print(f"⚠️ WARNING: Training samples count changed!")
@@ -427,8 +444,7 @@ def adaptation_with_checkpoint(epochs: int = EPOCHS):
 
         if DEBUG_ADAPT:
             print("🔍 DEBUG: Fresh playbook.to_dict() structure:")
-            print(json.dumps(grader.playbook.to_dict(), indent=2)[:500])   
-        
+            print(json.dumps(grader.playbook.to_dict(), indent=2)[:500])    
 
         # Initialize checkpoint
         checkpoint.initialize(
@@ -449,99 +465,113 @@ def adaptation_with_checkpoint(epochs: int = EPOCHS):
     print("="*70)
     print("💡 Press Ctrl+C to pause gracefully (progress will be saved)\n")
 
-    for epoch in range(start_epoch, epochs):
-        epoch_start_time = time.time()
+    try:
+        for epoch in range(start_epoch, epochs):
+            epoch_start_time = time.time()
 
-        print(f"\n{'='*70}")
-        print(f"EPOCH {epoch}/{epochs-1}")
-        print(f"{'='*70}")
+            print(f"\n{'='*70}")
+            print(f"EPOCH {epoch}/{epochs-1}")
+            print(f"{'='*70}")
 
-        try:
-            # Run one epoch
-            result = adaptation_epoch(grader, train_samples, epoch)
+            try:
+                # Run one epoch
+                result = adaptation_epoch(grader, train_samples, epoch)
 
-            required_keys = ['epoch', 'avg_mismatch', 'playbook_size', 'deltas_applied', 'samples_processed', 'timestamp']
+                if result is None:
+                    raise ValueError(
+                        f"adaptation_epoch() returned None for epoch {epoch}."
+                        f"This usually means the epoch was interrupted or failed."
+                    )
 
-            missing_keys = [k for k in required_keys if k not in result]
-            if missing_keys:
-                raise ValueError(
-                    f"adaptation_epoch() result missing keys: {missing_keys}"
+                required_keys = ['epoch', 'avg_mismatch', 'playbook_size', 'deltas_applied', 'samples_processed', 'timestamp']
+
+                missing_keys = [k for k in required_keys if k not in result]
+                if missing_keys:
+                    raise ValueError(
+                        f"adaptation_epoch() result missing keys: {missing_keys}"
+                    )
+
+                # Save epoch file (unchanged from original)
+                epoch_file = Path(EPOCHS_DIR) / f"epoch-{epoch:02d}.json"
+                with open(epoch_file, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        'epoch': epoch,
+                        'avg_mismatch': result['avg_mismatch'],
+                        'playbook_size': len(grader.playbook.bullets()),
+                        'deltas_applied': result['deltas_applied'],
+                        'samples_processed': len(train_samples),
+                        'timestamp': datetime.now().isoformat(),
+                        'elapsed_time_seconds': round(time.time() - epoch_start_time, 2)
+                    }, f, indent=2)
+
+                # Update checkpoint
+                checkpoint.update_epoch(
+                    epoch=epoch,
+                    avg_mismatch=result['avg_mismatch'],
+                    playbook_size=result['playbook_size'],
+                    deltas_applied=result['deltas_applied'],
+                    updated_playbook=grader.playbook.to_dict()
                 )
 
-            # Save epoch file (unchanged from original)
-            epoch_file = Path(EPOCHS_DIR) / f"epoch-{epoch:02d}.json"
-            with open(epoch_file, 'w', encoding='utf-8') as f:
-                json.dump({
-                    'epoch': epoch,
-                    'avg_mismatch': result['avg_mismatch'],
-                    'playbook_size': len(grader.playbook.bullets()),
-                    'deltas_applied': result['deltas_applied'],
-                    'samples_processed': len(train_samples),
-                    'timestamp': datetime.now().isoformat(),
-                    'elapsed_time_seconds': round(time.time() - epoch_start_time, 2)
-                }, f, indent=2)
+                print(f"✅ Epoch {epoch} complete - Checkpoint saved")
+                print(
+                    f"      Mismatch: {result['avg_mismatch']:.3f} | "
+                    f"      Playbook: {result['playbook_size']} bullets | "
+                    f"      Deltas: {result['deltas_applied']}"
+                )
 
-            # Update checkpoint
-            checkpoint.update_epoch(
-                epoch=epoch,
-                avg_mismatch=result['avg_mismatch'],
-                playbook_size=result['playbook_size'],
-                deltas_applied=result['deltas_applied'],
-                updated_playbook=grader.playbook.to_dict()
-            )
+            except KeyboardInterrupt:
+                print(f"\n⚠️ Epoch {epoch} interrupted by user")
+                print(f"    Last completed epoch: {checkpoint.data.get('last_completed_eoch', -1)}")
+                print(f"    Run adapt.py again to resume from epoch {checkpoint.data.get('last_completed_epoch', -1) + 1}")
+                return
 
-            print(f"✅ Epoch {epoch} complete - Checkpoint saved")
-            print(
-                f"      Mismatch: {result['avg_mismatch']:.3f} | "
-                f"      Playbook: {result['playbook_size']} bullets | "
-                f"      Deltas: {result['deltas_applied']}"
-            )
-                
-        except Exception as e:
-            print(f"\n❌ ERROR during epoch {epoch}: {e}")
-            print(f"    Error type: {type(e).__name__}")
-            print(f"    Checkpoint saved at epoch {checkpoint.data.get('last_completed_epoch', -1)}")
-            print("Progress saved. Fix the issue and rerun to resume.")
-            raise
+            except Exception as e:
+                print(f"\n❌ ERROR during epoch {epoch}: {e}")
+                print(f"    Error type: {type(e).__name__}")
+                print(f"    Checkpoint saved at epoch {checkpoint.data.get('last_completed_epoch', -1)}")
+                print("Progress saved. Fix the issue and rerun to resume.")
+                raise
 
-    # All epochs completed sucessfully.
-    print("\n" + "="*70)
-    print("🎉 ADAPTATION COMPLETE")
-    print("="*70)
+        # All epochs completed sucessfully.
+        print("\n" + "="*70)
+        print("🎉 ADAPTATION COMPLETE")
+        print("="*70)
 
 
-    # Generate final summary
-    summary = {
-        'total_epochs': epochs,
-        'training_samples': len(train_samples),
-        'total_deltas': checkpoint.data['total_deltas_applied'],
-        'final_playbook_size': checkpoint.data['adaptation_history'][-1]['playbook_size'],
-        'final_mismatch': checkpoint.data['adaptation_history'][-1]['avg_mismatch'],
-        'started_at': checkpoint.data['started_at'],
-        'completed_at': datetime.now().isoformat(),
-        'resume_count': checkpoint.data['resume_count'],
-        'epoch_history': checkpoint.data['adaptation_history'],
-        'deltas_log': deltas_log
-    }
+        # Generate final summary
+        summary = {
+            'total_epochs': epochs,
+            'training_samples': len(train_samples),
+            'total_deltas': checkpoint.data['total_deltas_applied'],
+            'final_playbook_size': checkpoint.data['adaptation_history'][-1]['playbook_size'],
+            'final_mismatch': checkpoint.data['adaptation_history'][-1]['avg_mismatch'],
+            'started_at': checkpoint.data['started_at'],
+            'completed_at': datetime.now().isoformat(),
+            'resume_count': checkpoint.data['resume_count'],
+            'epoch_history': checkpoint.data['adaptation_history'],
+            'deltas_log': deltas_log
+        }
 
-    summary_path = Path(LOG_DIR) / "adaptation_summary.json"
-    with open(summary_path, 'w', encoding='utf-8') as f:
-        json.dump(summary, f, indent=2)
+        summary_path = Path(LOG_DIR) / "adaptation_summary.json"
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            json.dump(summary, f, indent=2)
+        print(f"\n📊 Summary saved to: {summary_path}")
 
-    print(f"\n📊 Summary saved to: {summary_path}")
+        # Save final playbook
+        playbook_path = Path(LOG_DIR) / "latest_playbook.json"
+        with open(playbook_path, 'w', encoding='utf-8') as f:
+            json.dump(grader.playbook.to_dict(), f, indent=2)
+        print(f"📚 Final playbook saved to: {playbook_path}")
 
-    # Save final playbook
-    playbook_path = Path(LOG_DIR) / "latest_playbook.json"
-    with open(playbook_path, 'w', encoding='utf-8') as f:
-        json.dump(grader.playbook.to_dict(), f, indent=2)
+        # Delete checkpoint (no longer needed)
+        checkpoint.delete()
 
-    print(f"📚 Final playbook saved to: {playbook_path}")
+        print("\n✨ All done! You can now run post-adaptation testing.")
 
-    # Delete checkpoint (no longer needed)
-    checkpoint.delete()
-
-    print("\n✨ All done! You can now run post-adaptation testing.")
-
+    except KeyboardInterrupt:
+        print("\n⚠️ Adaptation interrupted. Checkpoint saved.")
+        print(f"    Run adapt.py again to resume.")
 
 def main():
     from constants import ADAPTATION_SUMMARY_FILE, LATEST_PLAYBOOK_FILE

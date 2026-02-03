@@ -276,14 +276,5 @@ rubric_bullets = extract_rubric(RUBRIC_FILE)
 print("Parsing student examples...")
 samples = extract_examples(EXAMPLES_FILE, rubric_bullets)
 
-# === MAIN EXECUTION ===
-"""if __name__ == "__main__":
-
-    # Save the file.
-    output_file = 'logs/samples/upv_samples.json'
-    json.dump(samples, open(output_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
-    print(f"✅ Saved {len(samples)} samples to {output_file}.")
-    print(f"Debug log saved to {DEBUG_LOG} for inspection.")"""
-
 one_sample = [samples[0]]
 json.dump(samples, open('logs/samples/train_samples.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)

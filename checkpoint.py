@@ -135,6 +135,8 @@ class AdaptationCheckpoint:
                     print(f"⚠️ Checkpoint missing required keys: {required_keys}")
                     return None
                 
+                self.data = data
+
                 print(f"📂 Load checkpoint from: {self.checkpoint_path}")
                 return data
             
