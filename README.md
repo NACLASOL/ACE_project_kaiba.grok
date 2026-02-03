@@ -215,7 +215,7 @@ Edit `upv_grader.py` to change the model:
 
 ```python
 # Available options:
-MODEL_YOUR-MODEL = ...                              # PoliGPT (UPV)
+MODEL_YOUR-MODEL = ...
 MODEL_GROQ = 'groq/meta-llama/llama-4-scout-17b-16e-instruct'
 MODEL_GOOGLE = 'gemini/gemini-2.5-flash'
 ```
