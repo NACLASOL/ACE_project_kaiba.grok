@@ -285,119 +285,119 @@ if mode == "Single Article":
                         f"Grading error: {type(e).__name__}: {str(e)}"
                     )
                 
-    else:
-        st.header("Batch Grade Articles.")
+elif mode == "Batch Upload":
+    st.header("Batch Grade Articles.")
 
-        st.markdown(
-            """
-            Upload a CSV file with the following columns:
+    st.markdown(
+        """
+        Upload a CSV file with the following columns:
 
-            - **title**: Article title.
-            - **text**: Article body.
+        - **title**: Article title.
+        - **text**: Article body.
 
-            **Format Requirements:**
-            - Separator: ';' (semicolon).
-            - Quote character: '"' (double quotes).
-            - Encoding: UTF-8
-            """
-        )
+        **Format Requirements:**
+        - Separator: ';' (semicolon).
+        - Quote character: '"' (double quotes).
+        - Encoding: UTF-8
+        """
+    )
 
-        # File uploader.
-        uploaded_file = st.file_uploader(
-            "Choose CSV file",
-            type="csv",
-            help="CSV with 'title' and 'text' columns, semicolon-separated"
-        )
+    # File uploader.
+    uploaded_file = st.file_uploader(
+        "Choose CSV file",
+        type="csv",
+        help="CSV with 'title' and 'text' columns, semicolon-separated"
+    )
 
-        if uploaded_file:
-            try:
-                df = pd.read_csv(
-                    uploaded_file,
-                    sep=";",
-                    quotechar='"',
-                    engine='python'
-                )
+    if uploaded_file:
+        try:
+            df = pd.read_csv(
+                uploaded_file,
+                sep=";",
+                quotechar='"',
+                engine='python'
+            )
 
-                st.markdown(f"📊 Loaded {len(df)} articles.")
+            st.markdown(f"📊 Loaded {len(df)} articles.")
 
-                # Preview.
-                with st.expander ("👀 Preview"):
-                    st.dataframe(df.head(), use_container_width=True)
+            # Preview.
+            with st.expander ("👀 Preview"):
+                st.dataframe(df.head(), use_container_width=True)
 
-                if st.button("🎯 Grade All Articles", use_container_width=True):
-                    with st.spinner(f"⏳ Grading {len(df)} articles..."):
-                        try:
-                            grades = ui_batch_grade(df)
+            if st.button("🎯 Grade All Articles", use_container_width=True):
+                with st.spinner(f"⏳ Grading {len(df)} articles..."):
+                    try:
+                        grades = ui_batch_grade(df)
 
-                            if not grades:
-                                st.error("❌ No articles could be graded successfully")
+                        if not grades:
+                            st.error("❌ No articles could be graded successfully")
 
-                            else:
-                                st.success(
-                                    f"✅ Graded {len(grades)}/{len(df)} articles successfully"
-                                )
-
-                                # Results table.
-                                results_data = []
-
-                                for idx, grade in enumerate(grades):
-                                    results_data.append({
-                                        "Index": idx,
-                                        "TA": grade["scores"]["TA"],
-                                        "CC": grade["scores"]["CC"],
-                                        "GR": grade["scores"]["GR"],
-                                        "LR": grade["scores"]["LR"],
-                                        "OWP": grade["scores"]["OWP"]
-                                    })
-                                
-                                results_df = pd.DataFrame(results_data)
-                                st.dataframe(results_df, use_container_width=True)
-
-                                # Statistics.
-                                col1, col2, col3, col4, col5 = st.columns(5)
-
-                                with col1:
-                                    st.metric("Avg TA", f"{results_df['TA'].mean():.2f}")
-
-                                with col2:
-                                    st.metric("Avg CC", f"{results_df['CC'].mean():.2f}")
-
-                                with col3:
-                                    st.metric("Avg GR", f"{results_df['GR'].mean():.2f}")
-                                
-                                with col4:
-                                    st.metric("Avg LR", f"{results_df['LR'].mean():.2f}")
-
-                                with col5:
-                                    st.metric("Avg OWP", f"{results_df['OWP'].mean():.2f}")
-                                
-                                # Download all results.
-                                st.download_button(
-                                    label = "📥 Download All Grades as JSON",
-                                    data=json.dumps(grades, indent=2),
-                                    file_name=f"batch_grades_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                                    mime="application/json"
-                                )
-                        
-                        except ValueError as e:
-                            st.error(f"❌ Validation Error: {str(e)}")
-                            logger.error(f"Batch validation error: {str(e)}")
-
-                        except Exception as e:
-                            st.error(f"❌ Batch grading Error: {str(e)}")
-                            logger.error(
-                                f"Batch grading error: {type(e).__name__}: {str(e)}"
+                        else:
+                            st.success(
+                                f"✅ Graded {len(grades)}/{len(df)} articles successfully"
                             )
 
-            except Exception as e:
-                st.error(
-                    f"❌ Error reading CSV: {str(e)}\n\n"
-                    "Ensure file is:\n"
-                    "- Semicolon-separated (;)\n"
-                    "- UTF-8 encoded\n"
-                    "- Has 'title' and 'text' columns"
-                )
-                logger.error(f"CSV parsing error: {str(e)}")
+                            # Results table.
+                            results_data = []
+
+                            for idx, grade in enumerate(grades):
+                                results_data.append({
+                                    "Index": idx,
+                                    "TA": grade["scores"]["TA"],
+                                    "CC": grade["scores"]["CC"],
+                                    "GR": grade["scores"]["GR"],
+                                    "LR": grade["scores"]["LR"],
+                                    "OWP": grade["scores"]["OWP"]
+                                })
+                            
+                            results_df = pd.DataFrame(results_data)
+                            st.dataframe(results_df, use_container_width=True)
+
+                            # Statistics.
+                            col1, col2, col3, col4, col5 = st.columns(5)
+
+                            with col1:
+                                st.metric("Avg TA", f"{results_df['TA'].mean():.2f}")
+
+                            with col2:
+                                st.metric("Avg CC", f"{results_df['CC'].mean():.2f}")
+
+                            with col3:
+                                st.metric("Avg GR", f"{results_df['GR'].mean():.2f}")
+                            
+                            with col4:
+                                st.metric("Avg LR", f"{results_df['LR'].mean():.2f}")
+
+                            with col5:
+                                st.metric("Avg OWP", f"{results_df['OWP'].mean():.2f}")
+                            
+                            # Download all results.
+                            st.download_button(
+                                label = "📥 Download All Grades as JSON",
+                                data=json.dumps(grades, indent=2),
+                                file_name=f"batch_grades_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                                mime="application/json"
+                            )
+                    
+                    except ValueError as e:
+                        st.error(f"❌ Validation Error: {str(e)}")
+                        logger.error(f"Batch validation error: {str(e)}")
+
+                    except Exception as e:
+                        st.error(f"❌ Batch grading Error: {str(e)}")
+                        logger.error(
+                            f"Batch grading error: {type(e).__name__}: {str(e)}"
+                        )
+
+        except Exception as e:
+            st.error(
+                f"❌ Error reading CSV: {str(e)}\n\n"
+                "Ensure file is:\n"
+                "- Semicolon-separated (;)\n"
+                "- UTF-8 encoded\n"
+                "- Has 'title' and 'text' columns"
+            )
+            logger.error(f"CSV parsing error: {str(e)}")
 
 # === FOOTER ===
 st.markdown("---")
