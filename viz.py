@@ -6,7 +6,7 @@ from pathlib import Path
 from collections import Counter
 from typing import List, Dict, Any
 
-from constants import EPOCHS_DIR, ADAPTATION_SUMMARY_FILE, LOG_DIR
+from constants import EPOCHS_DIR, ADAPTATION_SUMMARY_FILE, LOG_DIR, VIZ_FORMAT, SHOULD_SAVE_FIGS
 
 # === 1. CONFIGURATION ===
 EPOCH_FILES = sorted(EPOCHS_DIR.glob("epoch-*.json")) # For epoch-00.json, epoch-01.json, ...
@@ -15,8 +15,8 @@ EPOCH_FILES = sorted(EPOCHS_DIR.glob("epoch-*.json")) # For epoch-00.json, epoch
 sns.set_style('whitegrid')
 plt.rcParams["figure.figsize"] = (10,6)
 plt.rcParams["font.size"] = 12
-SAVE_FIGS = False    # Set to False to only show interactively.
-FIG_FMT = "png"      # "png" | "pdf" | "svg"
+SAVE_FIGS = SHOULD_SAVE_FIGS    # Set to False to only show interactively.
+FIG_FMT = VIZ_FORMAT      # "png" | "pdf" | "svg"
 
 # 2. === LOAD DATA ===
 def load_summary() -> Dict[str, Any]:
