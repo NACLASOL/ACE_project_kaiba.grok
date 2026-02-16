@@ -22,8 +22,6 @@ MODEL_GROQ_2 = 'groq/moonshotai/kimi-k2-instruct'
 MODEL_GOOGLE = 'gemini/gemini-2.5-flash'
 MODEL_UPV = 'openai/poligpt'
 
-"""LiteLLMClient(model=MODEL_UPV, api_key=os.getenv("UPV_API_KEY"), api_base="https://api.poligpt.upv.es/v1", temperature=0.1, max_tokens=8192)"""
-
 class UPVGrader:
     """UPV B2 Article Grader with ACE framework support."""
 

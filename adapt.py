@@ -21,7 +21,7 @@ from constants import (
     EPOCH_FAILURE_LOG,
     TASK_PROMPT,
     DEBUG_ADAPT,
-    EPOCHS,
+    EPOCHS
 )
 
 mismatches_log = []
