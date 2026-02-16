@@ -53,29 +53,25 @@ pip install -r requirements.txt
 Create a `.env` file in the project root:
 
 ```bash
-# === REQUIRED ===
+# AI MODEL API KEYS.
+GOOGLE_API_KEY=
+GROQ_API_KEY=
+UPV_API_KEY=
 
-# API Keys (choose one or more)
-GOOGLE_API_KEY=your-google-key
-GROQ_API_KEY=your-groq-key
-OTHER_API_KEY=your-api-key
-
-# Opik Tracking (optional)
-OPIK_PROJECT_NAME=your-project-name
-COMET_API_KEY=your-opik-key
+# OPIK TRACKING.
+OPIK_PROJECT_NAME=
+COMET_API_KEY=
 OPIK_TRACK_DISABLE=True
 
-# === OPTIONAL CONFIGURATION ===
-# Directories
+# CONFIGURATION
+VIZ_FORMAT=png
+
+# PROJECT DIRECTORIES.
+ACE_PARSE_DIR=./parse
 ACE_LOG_DIR=./logs
 ACE_EPOCHS_DIR=./logs/epochs
-ACE_PARSE_DIR=./parse
 
-# Adaptation Parameters
-DEBUG_ADAPT=False
-CHECKPOINT_ENABLED=True
-
-# File locations
+# PROJECT FILES.
 ACE_RUBRIC_FILE=parse/internship.enhance_b2_article_writing_rubric_structured.pdf
 ACE_EXAMPLES_FILE=parse/debug_batch_4_examples.pdf
 ```
@@ -203,7 +199,7 @@ ACE_project_kaiba.grok/
 | `GOOGLE_API_KEY` | ⚠️ One required | - | Google Gemini API key |
 | `GROQ_API_KEY` | ⚠️ One required | - | Groq API key |
 | `COMET_API_KEY` | ❌ No | - | Opik/Comet ML API key |
-| `OPIK_TRACK_DISABLE` | ✅ Yes | `3` | Number of adaptation epochs |
+| `OPIK_TRACK_DISABLE` | ✅ Yes | False | Enable Opik trace logging |
 | `ACE_LOG_DIR` | ✅ Yes | `./logs` | Output directory |
 | `ACE_PARSE_DIR` | ✅ Yes | `./parse` | PDF files directory |
 | `CHECKPOINT_ENABLED` | ✅ Yes | `True` | Enable checkpoint/resume |
