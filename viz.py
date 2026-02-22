@@ -6,7 +6,7 @@ from pathlib import Path
 from collections import Counter
 from typing import List, Dict, Any
 
-from constants import EPOCHS_DIR, ADAPTATION_SUMMARY_FILE, LOG_DIR, VIZ_FORMAT, SHOULD_SAVE_FIGS
+from constants import EPOCHS_DIR, ADAPTATION_SUMMARY_FILE, LOG_DIR, VIZ_FORMAT, SHOULD_SAVE_FIGS, PRUNING_LOG_FILE
 
 # === 1. CONFIGURATION ===
 EPOCH_FILES = sorted(EPOCHS_DIR.glob("epoch-*.json")) # For epoch-00.json, epoch-01.json, ...
@@ -123,6 +123,38 @@ def plot_playbook_evolution(epochs_data: List[Dict[str, Any]]):
         plt.savefig(LOG_DIR / f"playbook_growth.{FIG_FMT}", dpi=300)
     plt.show()
 
+def plot_pruning_impact(pruning_log_path: Path):
+    """Plot pruning impact on playbook size."""
+    with open(pruning_log_path, 'r') as f:
+        data = json.load(f)
+    
+    operations = data['pruning_operations']
+
+    epochs = [op['epoch'] for op in operations]
+    bullets_before = [op['bullets_before'] for op in operations]
+    bullets_removed = [op['bullets_removed'] for op in operations]
+
+    fig, ax1 = plt.subplots()
+
+    # Line: Playbook size over time
+    ax1.plot(epochs, bullets_before, marker='o', color='blue', label='Playbook Size')
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Playbook Size', color='blue')
+    ax1.tick_params(axis='y', labelcolor='blue')
+
+    # Bar: Bullets removed per epoch
+    ax2 = ax1.twinx()
+    ax2.bar(epochs, bullets_removed, alpha=0.5, color='red', label='Bullets Removed')
+    ax2.set_ylabel('Bullets Removed', color='red')
+    ax2.tick_params(axis='y', labelcolor='red')
+
+    fig.suptitle('Pruning Impact on Playbook Evolution')
+    fig.tight_layout()
+    if SAVE_FIGS:
+        plt.savefig(LOG_DIR / 'pruning_impact.png', dpi=300)
+    plt.show()
+
+
 # 4. === MAIN EXECUTION ===
 def main():
     if not LOG_DIR.exists():
@@ -140,6 +172,7 @@ def main():
     plot_mismatch_and_playbook(epoch_data)
     plot_playbook_evolution(epoch_data)
     plot_deltas(summary)
+    plot_pruning_impact(PRUNING_LOG_FILE)
 
     print(f"Plots saved to {LOG_DIR} (format: {FIG_FMT})")
 

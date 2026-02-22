@@ -6,13 +6,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 from statistics import mean
-from typing import Dict, List
+from typing import Dict, List, Optional
 from opik import *
 from opik.opik_context import update_current_span
 
 from checkpoint import AdaptationCheckpoint
 from parse_data import samples
 from upv_grader import *
+from prune import PlaybookPruner, UsageTracker, PruningLogger
 from constants import (
     OPIK_PROJECT_NAME,
     CHECKPOINT_ENABLED,
@@ -21,7 +22,12 @@ from constants import (
     EPOCH_FAILURE_LOG,
     TASK_PROMPT,
     DEBUG_ADAPT,
-    EPOCHS
+    EPOCHS,
+    PRUNING_ENABLED,
+    PRUNING_STRATEGY,
+    PRUNING_METADATA_FILE,
+    USAGE_LOG_FILE,
+    USAGE_STATS_FILE
 )
 
 mismatches_log = []
@@ -114,15 +120,15 @@ def extract_scores_from_response(final_answer: str) -> dict:
             "component": "main_adaptation",
         }     
     )
-def adaptation_epoch(grader: UPVGrader, samples, epoch: int) -> dict:
+def adaptation_epoch(grader: UPVGrader, samples, epoch: int, usage_tracker: Optional[UsageTracker] = None) -> dict:
     """
     Main adaptation that runs a single adaptation epoch.
 
     Args:
         grader: Grader used in the adaptation program
         samples: The samples used for the adaptation process
-        epoch: How many epochs the adaptation program will run.
-
+        epoch: How many epochs the adaptation program will run
+        usage_tracker: Optional tracker for bullet usage statistics (for pruning)
     """
 
     epoch_mismatches = []
@@ -164,6 +170,7 @@ def adaptation_epoch(grader: UPVGrader, samples, epoch: int) -> dict:
                     print(f"  - Playbook bullet count: UNKNOWN")
                 print()
 
+            # === GENERATOR ===
             result = generator.generate(
                 question=prompt,
                 context="",
@@ -213,12 +220,36 @@ def adaptation_epoch(grader: UPVGrader, samples, epoch: int) -> dict:
         mismatch = mean(abs(ai_scores[k] - human[k]) for k in human)
         epoch_mismatches.append(mismatch)
 
+        if usage_tracker is not None:
+            try:
+                bullet_ids_used = []
+                if hasattr(result, 'bullet_ids') and result.bullet_ids:
+                    bullet_ids_used = result.bullet_ids
+                elif hasattr(result, 'reasoning') and result.reasoning:
+                    bullet_ids_used = re.findall(r'bullet-[\w\-]+', result.reasoning)
+
+                all_bullet_ids = [b.id for b in playbook.bullets()]
+
+                usage_tracker.record_usage(
+                    epoch=epoch,
+                    sample_idx=sample_idx,
+                    bullet_ids_used=bullet_ids_used,
+                    all_bullet_ids=all_bullet_ids,
+                    score=mismatch,
+                    playbook=playbook
+                )
+            except Exception as e:
+                print(f"⚠️  Usage tracking failed: {e}")
+
         update_current_span(
             metadata={
                 "mismatch": mismatch,
                 "human_scores": human,
                 "ai_scores": ai_scores, 
                 "score_differences": {k: abs(ai_scores[k] - human[k]) for k in human},
+                "bullets_used_count": len(bullet_ids_used),
+                "total_bullets_available": len(all_bullet_ids),
+                "usage_rate": len(bullet_ids_used) / max(len(all_bullet_ids), 1)
             }
         )
 
@@ -226,6 +257,7 @@ def adaptation_epoch(grader: UPVGrader, samples, epoch: int) -> dict:
 Human scores: {human}. 
 AI scores: {ai_scores}.
 Avg mismatch: {mismatch:.2f}
+Provide actionable insights to reduce the difference between Human scores and AI scores.
 """
 
         # === REFLECT ===
@@ -262,7 +294,7 @@ Avg mismatch: {mismatch:.2f}
             deltas = curator.curate(
                 reflection=reflection,
                 playbook=playbook,
-                question_context="",
+                question_context="Provide actionable insights to reduce the difference between Human scores and AI scores.",
                 progress=f"Epoch {epoch}, Sample {sample_idx}",
             )
 
@@ -353,6 +385,25 @@ def adaptation_with_checkpoint(epochs: int = EPOCHS):
 
     # Initialize checkpoint manager
     checkpoint = AdaptationCheckpoint()
+
+    # Initialize pruning components
+    if PRUNING_ENABLED:
+        print(f"\n🔧 Initializing pruning system...")
+        pruner = PlaybookPruner(PRUNING_STRATEGY)
+        usage_tracker = UsageTracker()
+        pruning_logger = PruningLogger()
+        print(f"    ✅Pruning enabled (strategy={PRUNING_STRATEGY})")
+
+        # Load existing metadata if resuming
+        if PRUNING_METADATA_FILE.exists():
+            pruner.load_metadata(PRUNING_METADATA_FILE)
+            print(f"    📂Loaded existing pruning metadata")
+    
+    else:
+        pruner = None
+        usage_tracker = None
+        pruning_logger = None
+        print(f"\n⏭️     Pruning disabled")
 
     # Load training samples
     print("\n📂 Loading training samples...")
@@ -475,7 +526,7 @@ def adaptation_with_checkpoint(epochs: int = EPOCHS):
 
             try:
                 # Run one epoch
-                result = adaptation_epoch(grader, train_samples, epoch)
+                result = adaptation_epoch(grader, train_samples, epoch, usage_tracker=usage_tracker)
 
                 if result is None:
                     raise ValueError(
@@ -504,7 +555,27 @@ def adaptation_with_checkpoint(epochs: int = EPOCHS):
                         'elapsed_time_seconds': round(time.time() - epoch_start_time, 2)
                     }, f, indent=2)
 
-                # Update checkpoint
+
+                if PRUNING_ENABLED and pruner is not None:
+                    print("\n✂️ Running playbook pruning...")
+
+                    pruning_result = pruner.prune(
+                        playbook=grader.playbook,
+                        epoch=epoch,
+                        usage_tracker=usage_tracker
+                    )
+
+                    # Log pruning operation
+                    pruning_logger.log_pruning(pruning_result)
+
+                    # Print summary
+                    if pruning_result.bullets_removed > 0:
+                        print(f"    📊 Removed {pruning_result.bullets_removed} bullets")
+                        print(f"    📈 Playbook size: {pruning_result.bullets_before} → {pruning_result.bullets_after}")
+                    else:
+                        print(f"    ✅ No bullets pruned this epoch")
+
+                # Update checkpoint (with potentially pruned playbook)
                 checkpoint.update_epoch(
                     epoch=epoch,
                     avg_mismatch=result['avg_mismatch'],
@@ -532,6 +603,13 @@ def adaptation_with_checkpoint(epochs: int = EPOCHS):
                 print(f"    Checkpoint saved at epoch {checkpoint.data.get('last_completed_epoch', -1)}")
                 print("Progress saved. Fix the issue and rerun to resume.")
                 raise
+
+        if PRUNING_ENABLED and pruner is not None:
+            print(f"\n Saving pruning metadata and usage statistics...")
+            pruner.save_metadata(PRUNING_METADATA_FILE)
+            usage_tracker.save_log(USAGE_LOG_FILE)
+            usage_tracker.save_stats(USAGE_STATS_FILE)
+            print(f"    ✅ Save to {LOG_DIR}")
 
         # All epochs completed sucessfully.
         print("\n" + "="*70)
@@ -573,6 +651,16 @@ def adaptation_with_checkpoint(epochs: int = EPOCHS):
         print("\n⚠️ Adaptation interrupted. Checkpoint saved.")
         print(f"    Run adapt.py again to resume.")
 
+        if PRUNING_ENABLED and pruner is not None:
+            print("💾 Saving pruning state...")
+            try:
+                pruner.save_metadata(PRUNING_METADATA_FILE)
+                usage_tracker.save_log(USAGE_LOG_FILE)
+                usage_tracker.save_stats(USAGE_STATS_FILE)
+                print(f"    ✅ Pruning state saved")
+            except Exception as e:
+                print(f"    ⚠️ Failed to save pruning state: {e}")
+
 def main():
     from constants import ADAPTATION_SUMMARY_FILE, LATEST_PLAYBOOK_FILE
 
@@ -590,15 +678,41 @@ def main():
     # Initialize grader
     grader = UPVGrader(task_prompt=TASK_PROMPT)
     
+    # Initialize pruning components
+    if PRUNING_ENABLED:
+        pruner = PlaybookPruner(strategy=PRUNING_STRATEGY)
+        usage_tracker = UsageTracker()
+        pruning_logger = PruningLogger()
+        print(f"✅ Pruning enabled (strategy={PRUNING_STRATEGY})")
+    else:
+        pruner = None
+        usage_tracker = None
+        pruning_logger = None
+
     # Run epochs
     for epoch in range(EPOCHS):
         try:
-            epoch_result = adaptation_epoch(grader, train_samples, epoch)
+            epoch_result = adaptation_epoch(grader, train_samples, epoch, usage_tracker=usage_tracker)
             print(f"✅ Epoch {epoch} completed successfully")
             print(epoch_result)
+
+            # Prune after each epoch
+            if PRUNING_ENABLED and pruner:
+                pruning_result = pruner.prune(
+                    playbook=grader.playbook,
+                    epoch=epoch,
+                    usage_tracker=usage_tracker
+                )
+                pruning_logger.log_pruning(pruning_result)
+
         except Exception as e:
             print(f"❌ Epoch {epoch} failed: {str(e)}")
             raise
+
+    if PRUNING_ENABLED and pruner:
+        pruner.save_metadata(PRUNING_METADATA_FILE)
+        usage_tracker.save_log(USAGE_LOG_FILE)
+        usage_tracker.save_stats(USAGE_STATS_FILE)
 
     start_as_current_span(
         name="aggregation",
