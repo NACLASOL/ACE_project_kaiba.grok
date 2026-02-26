@@ -95,7 +95,7 @@ class PlaybookPruner:
             min_playbook_size: int = PRUNING_MIN_PLAYBOOK_SIZE,
             max_remove_per_epoch: int = PRUNING_MAX_REMOVE_PER_EPOCH,
             dry_run: bool = PRUNING_DRY_RUN,
-            embedding_model: str = "all-MiniLM-L6-V2"
+            embedding_model: str = "all-MiniLM-L6-v2"
     ):
         """
         Args:
@@ -223,43 +223,103 @@ class PlaybookPruner:
         """
         Remove bullets that are semantically similar (duplicates).
 
-        Strategy:
-        1. Compute embeddings for all bullets
-        2. Calculate pairwise cosine similarity
-        3. Remove bullets with similarity > threshold (keep older bullet)
+        Three-pass strategy:
+        Pass 0 - Empty/None content: Remove bullets with no meaningul content. These are unreliable for embedding and useless in the playbook.
+        Pass 1 - Exact duplicate detection: Content-hash comparison before any embedding is computed. Efficient and 100% reliable.
+        Pass 2 - Semantic similarity: Cosine similarity on remaining non-empty, non-duplicate bullets. Include zero-norm and NaN protection.
         """
         bullets = playbook.bullets()
         if len(bullets) <= 1:
             return []
         
-        # Get bullet contents
-        contents = [b.content for b in bullets]
+        to_remove: set = set()
 
-        # Compute embeddings
-        print(f"🧮 Computing embeddings for {len(contents)} bullets...")
-        embeddings = self.embedding_model.encode(contents, show_progress_bar=False)
-
-        # Compute pairwise similarity
-        similarity_matrix = cosine_similarity(embeddings)
-
-        # Find duplicates
-        to_remove = set()
-        for i in range(len(bullets)):
-            if bullets[i].id in to_remove:
+        # === PASS 0: Empty / None / whitespace-only content ===
+        for bullet in bullets:
+            content = bullet.content
+            if content is None or not str(content).strip():
+                to_remove.add(bullet.id)
+                print(f"    🗑️ Empty content bullet flagged: "
+                      f"id='{bullet.id}' section='{bullet.section}'")
+        
+        # === PASS 1: Exact duplicate detection via content hash ===
+        seen_hashes: Dict[str,str] = {} #md5_hash -> Frst bullet ID
+        for bullet in bullets:
+            if bullet.id in to_remove:
                 continue
-            for j in range (i + 1, len(bullets)):
-                if bullets[j].id in to_remove:
-                    continue
-                similarity = similarity_matrix[i][j]
-                if similarity >= self.similarity_threshold:
-                    # Keep older bullet (lower index = added earlier)
-                    to_remove.add(bullets[j].id)
-                    print(f"    📊 Duplicate found (similarity={similarity:.3f}): "
-                          f"Keeping '{bullets[i].content[:50]}...',"
-                          f"Removing '{bullets[j].content[:50]}...'"
-                          )
-                    
-            return [b for b in bullets if b.id in to_remove]
+            normalised = str(bullet.content or "").strip().lower()
+            content_hash = hashlib.md5(normalised.encode("utf-8")).hexdigest()
+            if content_hash in seen_hashes:
+                to_remove.add(bullet.id)
+                print(f"    🔁 Exact duplicate flagged: "
+                      f"id='{bullet.id}'"
+                      f"(duplicate of '{seen_hashes[content_hash]}')")
+            else:
+                seen_hashes[content_hash] = bullet.id
+
+        # === PASS 2: Embedding-based semantic similarity ===
+        encodable_bullets = [
+            b for b in bullets
+            if b.id not in to_remove
+            and b.content
+            and str(b.content).strip()
+        ]
+
+        if len(encodable_bullets) > 1:
+            contents = [str(b.content).strip() for b in encodable_bullets]
+
+            print(f"🧮 Computing embeddings for {len(contents)} bullets...")
+            try:
+                embeddings = self.embedding_model.encode(
+                    contents,
+                    show_progress_bar=False,
+                    convert_to_numpy=True
+                )
+
+                norms = np.linalg.norm(embeddings, axis=1)
+                zero_norm_mask = (norms == 0.0)
+                if zero_norm_mask.any():
+                    zero_count = zero_norm_mask.sum()
+                    print(f"    ⚠️ {zero_count} bullet(s) produced zero-norm "
+                          f"embeddings - flagging directly.")
+                    for idx, is_zero in enumerate(zero_norm_mask):
+                        if is_zero:
+                            to_remove.add(encodable_bullets[idx].id)
+                            print(f"    🗑️ Zero-norm bullet flagged: "
+                                  f"'{encodable_bullets[idx].id}'")
+                    # Refilter to valid (non-zero-norm) bullets only
+                    valid_idx = [i for i, z in enumerate(zero_norm_mask) if not z]
+                    encodable_bullets = [encodable_bullets[i] for i in valid_idx]
+                    embeddings = embeddings[valid_idx]
+                
+                if len(encodable_bullets) > 1:
+                    similarity_matrix = cosine_similarity(embeddings)
+
+                    # NaN gaurd: defensive protection against any residual
+                    similarity_matrix = np.nan_to_num(
+                        similarity_matrix, nan=0.0, posinf=1.0, neginf=0.0
+                    )
+
+                    for i in range(len(encodable_bullets)):
+                        if encodable_bullets[i].id in to_remove:
+                            continue
+                        for j in range(i + 1, len(encodable_bullets)):
+                            if encodable_bullets[j].id in to_remove:
+                                continue
+                            similarity = float(similarity_matrix[i][j])
+                            if similarity >= self.similarity_threshold:
+                                to_remove.add(encodable_bullets[j].id)
+                                print(
+                                    f"  📊 Semantic duplicate"
+                                    f"(similarity={similarity:.3f}): "
+                                    f"Keeping   '{str(encodable_bullets[i].content)[:50]}'"
+                                    f"Removing  '{str(encodable_bullets[j].content)[:50]}'"
+                                )
+            except Exception as e:
+                print(f"    ⚠️ Embedding similarity pass failed: {type(e).__name__}: {e}")
+                print(f"    Pass 0 and Pass 1 results are still applied.")
+
+        return [b for b in bullets if b.id in to_remove]        
         
     def _prune_by_usage(self, playbook: Playbook, epoch: int) -> List:
         """
@@ -361,7 +421,7 @@ class PlaybookPruner:
 
         # Pass 1: high similarity (duplicates)
         if self.embedding_model:
-            high_sim_bullets = self._prune_by_similarity_threshold(playbook, threshold=0.95)
+            high_sim_bullets = self._prune_by_similarity_threshold(playbook, threshold=0.60)
             to_remove_ids.update(b.id for b in high_sim_bullets)
             print(f"    🔍 Hybrid Pass 1 (similarity): {len(high_sim_bullets)} candidates")
 
