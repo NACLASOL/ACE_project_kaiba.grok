@@ -6,6 +6,7 @@ An AI-powered grading system for CEFR B2 English articles using **Agentic Contex
 
 - **Adaptive Grading**: Uses ACE framework roles (Generator, Reflector, Curator) to evolve grading strategies
 - **Checkpoint System**: Resume interrupted adaptation runs without losing progress
+- **Pruning System**: Automatically prunes the ACE playbook during the adaptation using select strategies
 - **Batch Processing**: Grade multiple articles simultaneously via Streamlit UI
 - **Opik Tracking**: Full observability with execution traces and metadata
 - **Visualization Tools**: Track playbook evolution and mismatch reduction across epochs
@@ -74,6 +75,16 @@ ACE_EPOCHS_DIR=./logs/epochs
 # PROJECT FILES.
 ACE_RUBRIC_FILE=parse/internship.enhance_b2_article_writing_rubric_structured.pdf
 ACE_EXAMPLES_FILE=parse/debug_batch_4_examples.pdf
+
+# PRUNING CONFIGURATION
+PRUNING_ENABLED=True
+PRUNING_STRATEGY=hybrid
+PRUNING_SIMILARITY_THRESHOLD=0.70
+PRUNING_MIN_USAGE_COUNT=3
+PRUNING_AGE_THRESHOLD_EPOCHS=2
+PRUNING_MIN_PLAYBOOK_SIZE=10
+PRUNING_MAX_REMOVE_PER_EPOCH=30
+PRUNING_DRY_RUN=False
 ```
 
 ### 5. Prepare Data Files
@@ -166,6 +177,7 @@ ACE_project_kaiba.grok/
 ├── parse_data.py         # PDF extraction (rubric + examples)
 ├── upv_grader.py         # LLM client and ACE component initialization
 ├── checkpoint.py         # Checkpoint/resume system with signal handling
+├── prune.py              # Adaptation playbook pruning using strategies
 ├── viz.py                # Visualization tools for adaptation metrics
 ├── constants.py          # Configuration management and validation
 ├── requirements.txt      # Python dependencies
@@ -204,6 +216,7 @@ ACE_project_kaiba.grok/
 | `ACE_PARSE_DIR` | ✅ Yes | `./parse` | PDF files directory |
 | `CHECKPOINT_ENABLED` | ✅ Yes | `True` | Enable checkpoint/resume |
 | `DEBUG_ADAPT` | ❌ No | `False` | Enable debug logging |
+| PRUNING VARIABLES | ✅ Yes | Controls pruning system |
 
 ### LLM Model Configuration
 
@@ -236,8 +249,9 @@ For each epoch:
     4. Curate playbook improvements
     5. Apply deltas to playbook
   
+  Perform playbook pruning
   Save epoch checkpoint
-  Log metrics (mismatch, playbook size, deltas)
+  Log metrics (mismatch, playbook size, deltas, bullet usage)
 ```
 
 ### Checkpoint System
@@ -246,6 +260,12 @@ For each epoch:
 - **Interrupt handling**: Press `Ctrl+C` once to save and exit safely
 - **Resume capability**: Run `adapt.py` again to continue from last checkpoint
 - **Atomic writes**: Uses `os.fsync()` to prevent data corruption
+
+### Pruning System
+- **Automatic pruning** after each epoch
+- **Pruning strategy**: Choose your preferred pruning strategy
+- **Strategy parameters**: Tune your chosen strategy parameters
+- **Review changes**: Analyze changes during/after the adaptation
 
 ## 📈 Output Files
 
@@ -258,6 +278,10 @@ For each epoch:
 | `grades.log` | Production grading audit log |
 | `parse_debug.log` | PDF extraction debugging info |
 | `samples/train_samples.json` | Extracted training examples |
+| `bullet_metadata` | Metadata por playbook bullets |
+| `pruning_log` | Pruning operations performed |
+| `usage_log` | Per-epoch bullets used |
+| `usage_stats` | Usage data for playbook bullets |
 
 ## 🔍 Troubleshooting
 
@@ -313,6 +337,9 @@ The system tracks:
 - **Playbook Size**: Number of strategic bullets in playbook
 - **Delta Operations**: ADD/MODIFY/DELETE counts per epoch
 - **Score Categories**: TA (Task Achievement), CC (Cohesion), GR (Grammar), LR (Lexical), OWP (Overall)
+- **Pruning Operations**: Pruned bullets from the playbook after each epoch
+- **Bullet Usage Log**: Playbook bullet usage per epoch
+-**Bullet Usage Data**: Bullet metadata
 
 ## 🤝 Contributing
 
