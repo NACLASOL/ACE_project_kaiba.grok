@@ -263,10 +263,11 @@ OUTPUT RAW JSON ONLY: {{"reasoning": "your analysis with \\n for breaks", "bulle
     ground_truth = scores or {
         'TA' : 0.0, 'CC' : 0.0, 'GR' : 0.0, 'LR' : 0.0, 'OWP' : 0.0
     }
-# REMOVED FOR DEBUG PURPOSES. UN-COMMENT AND RETURN TO ORIGINAL LINE: ... = scores ...
 
     return {
         'input' : full_input.strip(),
+        'article_title' : title,
+        'article_text' : article,
         'ground_truth' : ground_truth
     }
 
