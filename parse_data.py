@@ -219,7 +219,7 @@ def extract_examples(pdf_path: str, rubric_bullets: str) -> List[Dict]:
         print(f"Error parsing examples: {e}")
         log_debug(f"Error: {e}")
     
-    print(f"Succesfully extracted {len(samples)} complete student examples.")
+    print(f"✅ Succesfully extracted {len(samples)} complete student examples.")
     return samples
 
 def _extract_scores_from_lines(lines: list) -> Dict[str, float]:

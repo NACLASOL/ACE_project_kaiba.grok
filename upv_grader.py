@@ -16,10 +16,13 @@ from constants import LATEST_PLAYBOOK_FILE, SEED_BULLETS
 
 load_dotenv()
 
+# === MODEL EXAMPLES ===
+"""
+- groq/meta-llama/llama-4-scout-17b-16e-instruct
+- groq/moonshotai/kimi-k2-instruct
+- gemini/gemini-2.5-flash
+"""
 
-MODEL_GROQ = 'groq/meta-llama/llama-4-scout-17b-16e-instruct'
-MODEL_GROQ_2 = 'groq/moonshotai/kimi-k2-instruct'
-MODEL_GOOGLE = 'gemini/gemini-2.5-flash'
 MODEL_UPV = 'openai/poligpt'
 
 class UPVGrader:
